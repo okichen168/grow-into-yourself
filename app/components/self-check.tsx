@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Group = "pressure" | "control" | "withdrawal" | "wellbeing";
 type Kind = "partner" | "family" | "workplace" | "friendship";
@@ -104,34 +104,40 @@ function boundaryFor(kind: Kind) {
 }
 
 export default function SelfCheck() {
-  const [kind, setKind] = useState<Kind>("partner");
+  const [kind, setKind] = useState<Kind | null>(null);
+  const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<number[]>(Array(10).fill(-1));
   const [showResults, setShowResults] = useState(false);
-  const config = questionnaires[kind];
+  const questionsRef = useRef<HTMLDivElement>(null);
+  const config = kind ? questionnaires[kind] : null;
+  const questions = useMemo(() => config?.questions ?? [], [config]);
   const complete = answers.every((answer) => answer >= 0);
   const scores = useMemo(() => {
     const totals: Record<Group, number> = { pressure: 0, control: 0, withdrawal: 0, wellbeing: 0 };
     const counts: Record<Group, number> = { pressure: 0, control: 0, withdrawal: 0, wellbeing: 0 };
-    config.questions.forEach((question, index) => { totals[question.group] += Math.max(0, answers[index]); counts[question.group] += 1; });
-    return (Object.keys(totals) as Group[]).map((group) => ({ group, label: groupLabels[group], value: Math.round((totals[group] / (counts[group] * 3)) * 100) }));
-  }, [answers, config.questions]);
+    questions.forEach((question, index) => { totals[question.group] += Math.max(0, answers[index]); counts[question.group] += 1; });
+    return (Object.keys(totals) as Group[]).map((group) => ({ group, label: groupLabels[group], value: counts[group] ? Math.round((totals[group] / (counts[group] * 3)) * 100) : 0 }));
+  }, [answers, questions]);
   const get = (group: Group) => scores.find((item) => item.group === group)?.value ?? 0;
   const pressure = Math.round((get("pressure") + get("control") + get("withdrawal")) / 3);
   const wellbeing = get("wellbeing");
-  const safety = config.questions.some((question, index) => question.safety && answers[index] >= 2);
+  const safety = questions.some((question, index) => question.safety && answers[index] >= 2);
   const strongest = scores.filter((item) => item.group !== "wellbeing").sort((a, b) => b.value - a.value)[0];
 
-  function chooseKind(next: Kind) { setKind(next); setAnswers(Array(10).fill(-1)); setShowResults(false); }
+  useEffect(() => {
+    if (started) questionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [started]);
+
+  function chooseKind(next: Kind) { setKind(next); setStarted(false); setAnswers(Array(10).fill(-1)); setShowResults(false); }
   const level = safety ? "Elevated" : pressure >= 65 || wellbeing >= 65 ? "High" : pressure >= 35 || wellbeing >= 35 ? "Moderate" : "Low";
 
   return <section className="self-check" id="self-check">
     <div className="section-heading"><p className="eyebrow">Relationship check-in</p><h2>Look at the pattern, not one reaction.</h2><p>The person applying pressure may look calm. The person under pressure may panic or shout. This check asks about repetition, power, boundaries and impact — not who looked composed.</p></div>
-    <div className="check-tabs" role="tablist" aria-label="Relationship type">{(Object.keys(questionnaires) as Kind[]).map((item) => <button type="button" role="tab" data-context={item} aria-selected={kind === item} className={kind === item ? "active" : ""} onClick={() => chooseKind(item)} key={item}>{kind === item && <span aria-hidden="true">✓ </span>}{questionnaires[item].label}</button>)}</div>
-    <p className="check-intro">{config.intro}</p>
-    <div className="question-list">{config.questions.map((question, index) => <article className="question-card" key={question.text}><div className="question-heading"><span>{String(index + 1).padStart(2, "0")}</span><p>{question.text}</p></div><div className="frequency-row" role="radiogroup" aria-label={`Question ${index + 1}`}>{scale.map((label, value) => <label key={label}><input type="radio" name={`question-${index}`} checked={answers[index] === value} onChange={() => { const next = [...answers]; next[index] = value; setAnswers(next); setShowResults(false); }} /><span>{label}</span></label>)}</div></article>)}</div>
+    <div className="check-start english-check-start"><div><div className="check-tabs" role="tablist" aria-label="Relationship type">{(Object.keys(questionnaires) as Kind[]).map((item) => <button type="button" role="tab" data-context={item} aria-selected={kind === item} className={kind === item ? "active" : ""} onClick={() => chooseKind(item)} key={item}>{kind === item && <span aria-hidden="true">✓ </span>}{questionnaires[item].label}</button>)}</div>{config ? <p className="check-intro">{config.intro}</p> : <p className="check-intro">Choose the relationship you want to check.</p>}</div><button type="button" disabled={!kind} onClick={() => setStarted(true)}>Start relationship check</button></div>
+    {started && config && <><div className="question-list" id="relationship-questions" ref={questionsRef}>{questions.map((question, index) => <article className="question-card" key={question.text}><div className="question-heading"><span>{String(index + 1).padStart(2, "0")}</span><p>{question.text}</p></div><div className="frequency-row" role="radiogroup" aria-label={`Question ${index + 1}`}>{scale.map((label, value) => <label key={label}><input type="radio" name={`question-${index}`} checked={answers[index] === value} onChange={() => { const next = [...answers]; next[index] = value; setAnswers(next); setShowResults(false); }} /><span>{label}</span></label>)}</div></article>)}</div>
     <button type="button" className="primary check-submit" disabled={!complete} onClick={() => setShowResults(true)}>See my check-in</button>
-    {!complete && <p className="check-hint">Choose one answer for each question. Your answers stay on this device unless you actively submit something elsewhere.</p>}
-    {showResults && <section className="check-results" aria-live="polite"><p className="eyebrow">Your check-in</p><h3>{level} relationship pressure</h3><div className="score-grid">{scores.map((item) => <article key={item.group}><span>{item.label}</span><strong>{item.value}<small>/100</small></strong><em>{scoreLabel(item.value)}</em></article>)}</div>
+    {!complete && <p className="check-hint">Choose one answer for each question. Your answers stay on this device unless you actively submit something elsewhere.</p>}</>}
+    {showResults && kind && <section className="check-results" aria-live="polite"><p className="eyebrow">Your check-in</p><h3>{level} relationship pressure</h3><div className="score-grid">{scores.map((item) => <article key={item.group}><span>{item.label}</span><strong>{item.value}<small>/100</small></strong><em>{scoreLabel(item.value)}</em></article>)}</div>
       <div className="result-reading"><article><h4>What your answers suggest</h4><p>{pressure >= 35 ? `Your answers suggest repeated relationship pressure, especially around ${strongest?.label.toLowerCase()}. This is a pattern check, not a diagnosis of the other person.` : "Your answers do not show a concentrated pattern in this check. A single harmful event can still deserve care and a clear boundary."}</p></article><article><h4>Behaviour patterns noticed</h4><p>{pressure >= 35 ? "The concern is not how calm either person looked. It is the repeated pattern of pressure, control, isolation or what happens after you say no." : "There is not enough here to make a strong pattern claim. Notice whether a specific behaviour repeats, escalates or leaves you less free to choose."}</p></article><article><h4>How this may be affecting you</h4><p>{wellbeing >= 34 ? "Your answers suggest this may be taking up real emotional and physical space. Panic, anger, numbness or self-doubt after prolonged pressure do not prove that you caused it." : "Your wellbeing score is lower today. Keep noticing sleep, fear, self-doubt and whether you feel able to speak freely over time."}</p></article><article><h4>Safety concern level</h4><p>{safety ? "Elevated: one or more answers involve threats, retaliation, forced return or exposure. If there is immediate danger, use local emergency help rather than relying on this page." : "No immediate safety signal was selected here. That is not a guarantee of safety; your offline situation and instincts still matter."}</p></article><article><h4>What remains uncertain</h4><p>This check cannot verify events, read another person’s intentions or diagnose NPD, trauma or any personality disorder. It is most useful alongside dates, original messages and real-world support.</p></article><article><h4>One specific action for today</h4><p>{actionFor(kind, safety)}</p></article><article><h4>A boundary you may copy</h4><p className="copyable-boundary">{boundaryFor(kind)}</p></article></div><p className="supportive-closing">You do not have to prove that a pattern is “bad enough” before taking one careful step to protect your time, privacy or peace.</p></section>}
   </section>;
 }

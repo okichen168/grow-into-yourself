@@ -265,10 +265,9 @@ export default function Home() {
 
   return (
     <main>
-      <div className="emergency-strip">如果你正处于人身危险：先离开现场，拨打 <a href="tel:110">110</a>；需要急救拨打 <a href="tel:120">120</a></div>
       <header className="topbar">
         <a className="brand" href="#top"><span className="brand-mark">长</span><span>长成自己</span></a>
-        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#safety">安全求助</a></nav>
+        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#community">匿名互助</a></nav>
         <ThemeControls />
       </header>
 
@@ -293,10 +292,10 @@ export default function Home() {
       <section className="learn" id="learn">
         <div className="section-heading"><p className="eyebrow">先认识它</p><h2>情感操控不一定大喊大叫</h2><p>它也可能披着“爱你、为你好、你太敏感”的外衣。我们不隔着屏幕诊断谁是NPD，只辨认具体行为。</p></div>
         <div className="learn-grid">
-          <article><span>01</span><h3>否认与改写</h3><p>反复否认说过的话，让你开始怀疑自己的记忆和判断。</p></article>
-          <article><span>02</span><h3>羞辱与贬低</h3><p>不讨论事情，转而攻击你的能力、人格、外貌或价值。</p></article>
-          <article><span>03</span><h3>孤立与控制</h3><p>切断朋友、工作、钱和出行，让你越来越难独立选择。</p></article>
-          <article><span>04</span><h3>威胁与情绪勒索</h3><p>用分手、自伤、伤害、赶走或断供，逼你立刻服从。</p></article>
+          <article><i>🪞</i><span>01</span><h3>否认与改写</h3><p>反复否认说过的话，让你开始怀疑自己的记忆和判断。</p></article>
+          <article><i>🥀</i><span>02</span><h3>羞辱与贬低</h3><p>不讨论事情，转而攻击你的能力、人格、外貌或价值。</p></article>
+          <article><i>🕊️</i><span>03</span><h3>孤立与控制</h3><p>切断朋友、工作、钱和出行，让你越来越难独立选择。</p></article>
+          <article><i>⛈️</i><span>04</span><h3>威胁与情绪勒索</h3><p>用分手、自伤、伤害、赶走或断供，逼你立刻服从。</p></article>
         </div>
         <p className="learn-note">一个句子不能定义一段关系。真正需要警惕的是：这些行为是否反复发生、是否升级，以及你说“不”之后会发生什么。</p>
       </section>
@@ -372,16 +371,15 @@ export default function Home() {
         </div>
       </section>}
 
-      <section className="safety" id="safety">
-        <div className="section-heading"><p className="eyebrow">中国地区求助</p><h2>沟通技巧不能代替现实安全</h2><p>热线接通与服务时间可能因地区而异。正在发生危险时，不要等待网页分析。</p></div>
-        <div className="help-grid">{helpLines.map((line) => <a href={`tel:${line.number.split(" ")[0]}`} key={line.number}><strong>{line.number}</strong><div><h3>{line.name}</h3><p>{line.note}</p></div><span>拨打 ›</span></a>)}</div>
-      </section>
-
       <CommunityBoard />
 
       <section className="credibility">
         <strong>公开证据，也公开边界</strong>
         <p>这是一个跨学科研究共建计划，正在邀请海外高校心理学、心理健康、社会工作与数理统计相关博士生参与方法审核与迭代。首版已核对五组共100+项论文、量表、专业规范与同类产品案例；后续目标是维护100—200篇核心证据库。正式参与者、资质与参与方式会在本人确认后公开，不把未来合作写成已经发生的专家背书。</p>
+      </section>
+
+      <section className="safety" id="safety">
+        <details><summary>如果现实安全受到威胁：查看中国地区支持方式</summary><div className="compact-help">{helpLines.map((line) => <a href={`tel:${line.number.split(" ")[0]}`} key={line.number}><strong>{line.number}</strong><span>{line.name} · {line.note}</span></a>)}</div><p>热线接通与服务时间可能因地区而异。正在发生危险时优先拨110，受伤或需要急救拨120。</p></details>
       </section>
 
       <footer><strong>长成自己</strong><span>反对情感暴力 · 不给任何人贴诊断标签 · 把选择还给你</span><a href="/admin">内容管理</a></footer>

@@ -3,17 +3,18 @@
 import { useEffect, useState } from "react";
 
 const themes = [
-  { id: "embrace", name: "拥抱", colors: ["#e88d92", "#fff8f2", "#c9b8df"] },
-  { id: "breath", name: "呼吸", colors: ["#759b89", "#f6f2e9", "#cbd9cf"] },
-  { id: "moon", name: "月光", colors: ["#8d83bc", "#f8f6fb", "#b7c9df"] },
-  { id: "sunny", name: "晴日", colors: ["#df8a55", "#fff8e8", "#f2cf7d"] },
-  { id: "night", name: "夜航", colors: ["#8f88c9", "#202236", "#474c72"] },
+  { id: "embrace", name: "公主房", colors: ["#e88d92", "#fff8f2", "#c9b8df"] },
+  { id: "breath", name: "草原树", colors: ["#759b89", "#f6f2e9", "#cbd9cf"] },
+  { id: "moon", name: "海岸风", colors: ["#6f98bd", "#f4f9fd", "#b7d3e6"] },
+  { id: "sunny", name: "日光房", colors: ["#df8a55", "#fff8e8", "#f2cf7d"] },
+  { id: "night", name: "紫月夜", colors: ["#8f88c9", "#292b43", "#777ca7"] },
 ];
 
 const fonts = [
-  { id: "soft", name: "柔和体" },
-  { id: "clear", name: "清晰体" },
-  { id: "reading", name: "阅读体" },
+  { id: "soft", name: "圆体" },
+  { id: "clear", name: "黑体" },
+  { id: "kai", name: "楷体" },
+  { id: "reading", name: "宋体" },
 ];
 
 export default function ThemeControls() {
@@ -48,7 +49,7 @@ export default function ThemeControls() {
         <span className="choice-label">颜色</span>
         <div className="theme-options">{themes.map((item) => <button className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i><span>{item.name}</span></button>)}</div>
         <span className="choice-label">字体</span>
-        <div className="font-options">{fonts.map((item) => <button className={font === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{item.name}</button>)}</div>
+        <div className="font-options">{fonts.map((item) => <button data-font-preview={item.id} className={font === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{item.name}</button>)}</div>
       </div>}
     </div>
   );

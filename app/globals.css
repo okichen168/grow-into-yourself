@@ -280,6 +280,7 @@ textarea:focus { border-color: var(--rose); box-shadow: 0 0 0 4px rgba(232,141,1
 .community h2 { margin: 18px auto; font-family: "Noto Serif SC", "Songti SC", serif; font-size: clamp(34px, 4.5vw, 62px); }
 .message-river { overflow:hidden; margin:30px calc(-1 * clamp(20px,7vw,110px)); padding:18px 0; border-block:1px solid color-mix(in srgb,var(--line) 70%,transparent); }
 .message-river>p { padding:0 30px; text-align:center; color:var(--muted); }
+.message-river-empty { height:20px; opacity:.35; background:linear-gradient(90deg,transparent,var(--rose),var(--lilac),transparent); filter:blur(12px); }
 .message-track { width:max-content; display:flex; gap:14px; animation:river 52s linear infinite; }
 .message-track span { max-width:380px; padding:13px 18px; border-radius:999px; background:color-mix(in srgb,var(--paper) 82%,transparent); box-shadow:0 8px 22px rgba(80,60,70,.07); }
 .message-track b { margin-right:9px; color:var(--rose-dark); font-size:11px; }

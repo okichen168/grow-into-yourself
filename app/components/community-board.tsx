@@ -33,7 +33,7 @@ export default function CommunityBoard() {
   return <section className="community" id="community">
     <div className="section-heading"><p className="eyebrow">匿名互助留言</p><h2>“原来不止我一个人经历过。”</h2><p>留言不会立即公开。我们先去除身份线索、危机内容和可能伤害他人的信息，再分批更新互助墙。</p></div>
     <div className="message-river" aria-label="审核通过的匿名留言">
-      {stream.length ? <div className="message-track">{stream.map((post, index) => <span key={`${post.id}-${index}`}><b>{post.topic}</b>{post.content}</span>)}</div> : <p>这里还没有审核通过的留言。第一条真实留言出现前，我们不会用虚构用户填满它。</p>}
+      {stream.length ? <div className="message-track">{stream.map((post, index) => <span key={`${post.id}-${index}`}><b>{post.topic}</b>{post.content}</span>)}</div> : <div className="message-river-empty" aria-hidden="true" />}
     </div>
     <div className="community-grid">
       <form className="soft-form" onSubmit={submitPost}>

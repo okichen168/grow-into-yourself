@@ -47,7 +47,7 @@ export default function ThemeControls() {
         <div className="theme-panel-head"><strong>选一个让你舒服的界面</strong><button onClick={() => setOpen(false)} aria-label="关闭">×</button></div>
         <p>颜色和字体只保存在当前设备，不会和你的聊天内容关联。</p>
         <span className="choice-label">颜色</span>
-        <div className="theme-options">{themes.map((item) => <button className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i><span>{item.name}</span></button>)}</div>
+        <div className="theme-options">{themes.map((item) => <button aria-label={`切换到${item.name}主题`} className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i></button>)}</div>
         <span className="choice-label">字体</span>
         <div className="font-options">{fonts.map((item) => <button data-font-preview={item.id} className={font === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{item.name}</button>)}</div>
       </div>}

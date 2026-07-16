@@ -49,6 +49,16 @@ const languagePatterns = [
     explanation: "当你指出一个具体伤害时，对方先否认，再攻击你的可信度，最后把自己放到受害者位置。研究称这种组合为DARVO；命中一句不等于完整模式，要看三个步骤是否反复出现。",
   },
   {
+    title: "只展示你崩溃的最后一幕",
+    words: ["她先吼的", "他先吼的", "你看她又疯了", "你情绪不稳定", "大家都看到了", "谁会相信你", "我一直很冷静", "只截这段"],
+    explanation: "语气平静不是无害证明，情绪激动也不能单独判定谁先造成伤害。需要把镜头往前拉，看完整时间线、重复施压、权力差距、你说“不”后的反应，以及谁长期承担后果。",
+  },
+  {
+    title: "群体排斥、泄密或围攻",
+    words: ["大家都讨厌你", "都别理她", "都别理他", "踢出群", "把聊天发群里", "你的秘密", "选我还是选她", "我们都不带你"],
+    explanation: "把隐私发给别人、动员共同朋友排斥你，或用群体压力逼你选边，不只是普通意见不同。先保存完整记录，并找一个不在这场冲突里的可信任者核对情况。",
+  },
+  {
     title: "忽冷忽热与奖惩式亲密",
     words: ["再给你一次机会", "看你表现", "乖一点就", "听话就", "不听话就分手", "只有我会爱你", "没人会像我一样", "离不开我"],
     explanation: "亲密、承诺或联系被当作奖励和惩罚，会让人把注意力放在取悦对方，而不是判断关系是否互相尊重。单次情绪变化不能证明操控，重点看是否形成稳定奖惩循环。",
@@ -345,12 +355,12 @@ export default function Home() {
       <section className="learn" id="learn">
         <div className="section-heading"><p className="eyebrow">先认识它</p><h2>情感操控不一定大喊大叫</h2><p>它也可能披着“爱你、为你好、你太敏感”的外衣。我们不隔着屏幕诊断谁是NPD，只辨认具体行为。</p></div>
         <div className="learn-grid">
-          <article><i>🪞</i><span>01</span><h3>否认与改写</h3><p>反复否认说过的话，让你开始怀疑自己的记忆和判断。</p></article>
-          <article><i>🥀</i><span>02</span><h3>羞辱与贬低</h3><p>不讨论事情，转而攻击你的能力、人格、外貌或价值。</p></article>
-          <article><i>🕊️</i><span>03</span><h3>孤立与控制</h3><p>切断朋友、工作、钱和出行，让你越来越难独立选择。</p></article>
-          <article><i>⛈️</i><span>04</span><h3>威胁与情绪勒索</h3><p>用分手、自伤、伤害、赶走或断供，逼你立刻服从。</p></article>
+          <a href="/learn#gaslighting"><article><i>🪞</i><span>01</span><h3>否认与改写</h3><p>反复否认说过的话，让你开始怀疑自己的记忆和判断。</p><b>点开看看 →</b></article></a>
+          <a href="/learn#humiliation"><article><i>🥀</i><span>02</span><h3>羞辱与贬低</h3><p>不讨论事情，转而攻击你的能力、人格、外貌或价值。</p><b>点开看看 →</b></article></a>
+          <a href="/learn#control"><article><i>🕊️</i><span>03</span><h3>孤立与控制</h3><p>切断朋友、工作、钱和出行，让你越来越难独立选择。</p><b>点开看看 →</b></article></a>
+          <a href="/learn#darvo"><article><i>⛈️</i><span>04</span><h3>为什么外人容易看反</h3><p>对方可能很冷静，而被长期逼迫的人只在最后一幕崩溃。</p><b>点开看看 →</b></article></a>
         </div>
-        <p className="learn-note">一个句子不能定义一段关系。真正需要警惕的是：这些行为是否反复发生、是否升级，以及你说“不”之后会发生什么。</p>
+        <p className="learn-note">一个句子不能定义一段关系。真正需要警惕的是：这些行为是否反复发生、是否升级，以及你说“不”之后会发生什么。<a href="/learn">查看全部通俗科普 →</a></p>
       </section>
 
       <section className="tool-section" id="tool">
@@ -364,6 +374,7 @@ export default function Home() {
             <button className={mode === "image" ? "active" : ""} onClick={() => setMode("image")} role="tab" aria-selected={mode === "image"}>上传微信截图</button>
             <button className={mode === "text" ? "active" : ""} onClick={() => setMode("text")} role="tab" aria-selected={mode === "text"}>粘贴聊天文字</button>
           </div>
+          <div className="context-picker context-picker-main" aria-label="对话发生场景"><span>这段对话来自</span>{([['relationship','伴侣 / 暧昧'],['family','家人'],['workplace','职场'],['other','朋友']] as const).map(([value,label]) => <button type="button" className={context === value ? "active" : ""} onClick={() => { setContext(value); setAnalysis(null); }} key={value}>{label}</button>)}</div>
 
           {mode === "image" ? (
             <div className="upload-view">
@@ -389,7 +400,6 @@ export default function Home() {
           ) : (
             <div className="text-view">
               <label htmlFor="conversation">识别结果 / 聊天文字</label>
-              <div className="context-picker" aria-label="对话发生场景"><span>这段对话来自</span>{([['relationship','伴侣 / 暧昧'],['family','家人'],['workplace','职场'],['other','朋友']] as const).map(([value,label]) => <button type="button" className={context === value ? "active" : ""} onClick={() => { setContext(value); setAnalysis(null); }} key={value}>{label}</button>)}</div>
               <textarea id="conversation" value={text} onChange={(event) => { setText(event.target.value.slice(0, 12000)); setAnalysis(null); }} placeholder={'建议在每段前标注“我：”“对方：”，并删除姓名、电话、地址等隐私信息。'} />
               <div className="text-meta"><span>{status || "请校对人物、金额，以及“不、没、别”等否定词。"}</span><span>{count} / 12000</span></div>
               <div className="action-row"><button className="ghost" onClick={loadExample}>先看演示</button><button className="primary" disabled={!canAnalyse} onClick={runAnalysis}>替我拆解这段话</button></div>
@@ -429,7 +439,7 @@ export default function Home() {
 
       <section className="credibility">
         <strong>公开证据，也公开边界</strong>
-        <p>这是一个跨学科研究共建计划，正在邀请海外高校心理学、心理健康、社会工作与数理统计相关博士生参与方法审核与迭代。首版已核对五组共100+项论文、量表、专业规范与同类产品案例。</p>
+        <p>这是一个跨学科研究共建计划，正在邀请心理学、心理健康、社会工作与数理统计相关研究者参与方法审核与迭代。本轮检索核对60余条学术、机构与同类循证工具资料，首批公开26项可直接查看的核心来源。 <a href="/learn#sources">查看来源与适用边界 →</a></p>
       </section>
 
       <section className="safety" id="safety">

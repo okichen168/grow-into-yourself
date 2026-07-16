@@ -1,37 +1,113 @@
 "use client";
 
-import createGlobe from "cobe";
+import { geoDistance, geoGraticule10, geoOrthographic, geoPath } from "d3-geo";
+import { feature, mesh } from "topojson-client";
+import type { GeometryCollection, Topology } from "topojson-specification";
+import countriesAtlas from "world-atlas/countries-110m.json";
 import { useEffect, useRef } from "react";
 
 type GlobePost = { id: number; latitude: number | null; longitude: number | null; hearts: number };
 
+const atlas = countriesAtlas as unknown as Topology<{ countries: GeometryCollection }>;
+const countries = feature(atlas, atlas.objects.countries);
+const borders = mesh(atlas, atlas.objects.countries, (a, b) => a !== b);
+
 export default function WorldGlobe({ posts }: { posts: GlobePost[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pointer = useRef<number | null>(null);
-  const drag = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    let width = 0; let phi = 0; let dragStart = 0;
-    const resize = () => { width = canvas.offsetWidth; };
-    window.addEventListener("resize", resize); resize();
-    const markers = posts.filter((post) => post.latitude != null && post.longitude != null).slice(0, 60).map((post) => ({ location: [post.latitude as number, post.longitude as number] as [number, number], size: Math.min(.11, .035 + Math.log2((post.hearts || 0) + 1) * .008), color: [1, .54, .68] as [number, number, number] }));
-    const globe = createGlobe(canvas, {
-      devicePixelRatio: Math.min(2, window.devicePixelRatio), width: width * 2, height: width * 2,
-      phi: 0, theta: .12, dark: 0, diffuse: 1.35, scale: 1.06, mapSamples: 16000,
-      mapBrightness: 5.5, baseColor: [.56, .72, .78], markerColor: [1, .48, .65], glowColor: [.96, .9, 1], markers,
-      onRender: (state) => { if (pointer.current == null) phi += .0022; state.phi = phi + drag.current; state.width = width * 2; state.height = width * 2; },
-    });
-    const move = (clientX: number) => { if (pointer.current != null) drag.current = dragStart + (clientX - pointer.current) / 160; };
-    const down = (clientX: number) => { pointer.current = clientX; dragStart = drag.current; canvas.style.cursor = "grabbing"; };
-    const up = () => { pointer.current = null; canvas.style.cursor = "grab"; };
-    const onPointerDown = (event: PointerEvent) => down(event.clientX);
-    const onPointerMove = (event: PointerEvent) => move(event.clientX);
-    const onTouchMove = (event: TouchEvent) => { if (event.touches[0]) move(event.touches[0].clientX); };
-    canvas.addEventListener("pointerdown", onPointerDown); window.addEventListener("pointermove", onPointerMove); window.addEventListener("pointerup", up); canvas.addEventListener("touchmove", onTouchMove, { passive: true });
-    return () => { globe.destroy(); window.removeEventListener("resize", resize); canvas.removeEventListener("pointerdown", onPointerDown); window.removeEventListener("pointermove", onPointerMove); window.removeEventListener("pointerup", up); canvas.removeEventListener("touchmove", onTouchMove); };
+    let frame = 0;
+    let width = 0;
+    let rotation = -105;
+    let tilt = -12;
+    let pointer: { x: number; y: number; rotation: number; tilt: number } | null = null;
+    let lastTime = performance.now();
+
+    const resize = () => {
+      width = Math.max(280, canvas.clientWidth);
+      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(width * ratio);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    resize();
+
+    const draw = (time: number) => {
+      const elapsed = Math.min(40, time - lastTime);
+      lastTime = time;
+      if (!pointer) rotation += elapsed * .0028;
+      const ratio = canvas.width / width;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, width);
+
+      const projection = geoOrthographic().translate([width / 2, width / 2]).scale(width * .44).clipAngle(90).precision(.25).rotate([rotation, tilt]);
+      const path = geoPath(projection, context);
+
+      context.beginPath(); path({ type: "Sphere" });
+      context.fillStyle = "rgba(170, 215, 231, .96)"; context.fill();
+      context.lineWidth = 1.2; context.strokeStyle = "rgba(255,255,255,.9)"; context.stroke();
+
+      context.beginPath(); path(geoGraticule10());
+      context.lineWidth = .55; context.strokeStyle = "rgba(255,255,255,.34)"; context.stroke();
+
+      context.beginPath(); path(countries);
+      context.fillStyle = "rgba(242, 232, 220, .98)"; context.fill();
+      context.lineWidth = .75; context.strokeStyle = "rgba(100, 126, 132, .55)"; context.stroke();
+
+      context.beginPath(); path(borders);
+      context.lineWidth = .55; context.strokeStyle = "rgba(119, 133, 132, .46)"; context.stroke();
+
+      const centre = projection.invert?.([width / 2, width / 2]) || [0, 0];
+      for (const post of posts.filter((item) => item.latitude != null && item.longitude != null).slice(0, 80)) {
+        const point: [number, number] = [post.longitude as number, post.latitude as number];
+        if (geoDistance(point, centre as [number, number]) > Math.PI / 2) continue;
+        const projected = projection(point);
+        if (!projected) continue;
+        const radius = Math.min(9, 4 + Math.log2((post.hearts || 0) + 1) * .7);
+        context.beginPath(); context.arc(projected[0], projected[1], radius * 2.2, 0, Math.PI * 2);
+        context.fillStyle = "rgba(255, 119, 161, .18)"; context.fill();
+        context.beginPath(); context.arc(projected[0], projected[1], radius, 0, Math.PI * 2);
+        context.fillStyle = "#f26f9b"; context.fill();
+        context.lineWidth = 1.5; context.strokeStyle = "rgba(255,255,255,.95)"; context.stroke();
+      }
+      frame = requestAnimationFrame(draw);
+    };
+
+    const down = (event: PointerEvent) => {
+      pointer = { x: event.clientX, y: event.clientY, rotation, tilt };
+      canvas.setPointerCapture(event.pointerId);
+      canvas.style.cursor = "grabbing";
+    };
+    const move = (event: PointerEvent) => {
+      if (!pointer) return;
+      rotation = pointer.rotation + (event.clientX - pointer.x) * .28;
+      tilt = Math.max(-65, Math.min(65, pointer.tilt - (event.clientY - pointer.y) * .2));
+    };
+    const up = (event: PointerEvent) => {
+      pointer = null;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.style.cursor = "grab";
+    };
+
+    canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    frame = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerup", up);
+      canvas.removeEventListener("pointercancel", up);
+    };
   }, [posts]);
 
-  return <div className="world-globe"><canvas ref={canvasRef} aria-label="可拖动的世界互助地图。粉色星点代表审核通过的匿名留言。" /><span>✦ drag to turn · 拖动地球 ✦</span></div>;
+  return <div className="world-globe"><canvas ref={canvasRef} aria-label="可拖动的真实世界地图地球仪。粉色星点代表审核通过的匿名留言。" /><span>✦ drag to turn · 拖动地球 ✦</span></div>;
 }

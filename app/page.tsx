@@ -6,10 +6,11 @@ import SelfCheck from "./components/self-check";
 import ThemeControls from "./components/theme-controls";
 
 type Finding = { title: string; evidence: string[]; explanation: string };
+type ConversationContext = "relationship" | "family" | "workplace" | "other";
 type RiskLevel = "urgent" | "high" | "watch" | "none";
 type RiskFinding = { title: string; evidence: string[]; guidance: string };
 type RiskAssessment = { level: RiskLevel; label: string; summary: string; findings: RiskFinding[] };
-type Analysis = { findings: Finding[]; facts: string[]; translation: string; replies: string[]; risk: RiskAssessment };
+type Analysis = { findings: Finding[]; facts: string[]; translation: string; replies: string[]; risk: RiskAssessment; contextLabel: string };
 
 const languagePatterns = [
   {
@@ -41,6 +42,51 @@ const languagePatterns = [
     title: "孤立与切断支持",
     words: ["别跟他们来往", "不准见朋友", "你朋友都", "离他们远点", "只能相信我", "家丑不可外扬"],
     explanation: "让你远离朋友、家人或外部帮助，会增加依赖，也会让你更难核对现实。",
+  },
+  {
+    title: "DARVO式责任反转",
+    words: ["你才是施暴者", "你才是坏人", "我才是受害者", "你在污蔑我", "你毁了我", "你怎么不说你自己", "反咬一口"],
+    explanation: "当你指出一个具体伤害时，对方先否认，再攻击你的可信度，最后把自己放到受害者位置。研究称这种组合为DARVO；命中一句不等于完整模式，要看三个步骤是否反复出现。",
+  },
+  {
+    title: "忽冷忽热与奖惩式亲密",
+    words: ["再给你一次机会", "看你表现", "乖一点就", "听话就", "不听话就分手", "只有我会爱你", "没人会像我一样", "离不开我"],
+    explanation: "亲密、承诺或联系被当作奖励和惩罚，会让人把注意力放在取悦对方，而不是判断关系是否互相尊重。单次情绪变化不能证明操控，重点看是否形成稳定奖惩循环。",
+  },
+  {
+    title: "惩罚性沉默或撤回联系",
+    words: ["别再找我", "什么时候想明白再说", "晾着你", "不回你", "不想跟你说话", "你自己反省", "冷静到你认错"],
+    explanation: "说明需要暂停、约定恢复时间，是健康冷静；故意失联、拒绝说明并一直等你妥协，更接近惩罚性沉默和社会排斥。",
+  },
+  {
+    title: "性边界施压",
+    words: ["不愿意就是不爱我", "都在一起了", "情侣就应该", "你欠我的", "装什么", "不做就分手", "证明你爱我"],
+    explanation: "亲密关系不等于永久同意。用爱、关系身份、羞耻或分手威胁换取性行为，是对同意边界的施压。",
+  },
+  {
+    title: "特权感、利用与缺乏互惠",
+    words: ["我凭什么道歉", "你就应该", "必须以我为主", "我永远不会错", "你配吗", "你只要听我的", "为我做是应该的"],
+    explanation: "这些话可能表现出特权期待、利用或缺乏互惠，是可观察的互动问题；它们不是NPD诊断，正式诊断必须由专业人员直接评估当事人。",
+  },
+  {
+    title: "职场公开贬低与人格攻击",
+    words: ["这点事都做不好", "你脑子有问题", "当着大家", "全公司都知道", "能力不行", "不适合工作", "废物员工"],
+    explanation: "绩效反馈应针对任务、标准和改进方法。反复公开羞辱、嘲笑或攻击人格，更接近针对个人的职场霸凌行为。",
+  },
+  {
+    title: "职场信息封锁与排斥",
+    words: ["没必要告诉你", "会议不用参加", "不用抄送她", "群里别说话", "不带你", "别跟她合作", "不要告诉他", "故意不通知"],
+    explanation: "反复扣住完成工作必需的信息、排除会议或孤立同事，属于工作相关霸凌与职场排斥的常见维度。",
+  },
+  {
+    title: "不合理任务、抢功或故意设败",
+    words: ["今晚必须做完", "不可能也要完成", "做不完就滚", "功劳是我的", "不要署你的名", "给你最低绩效", "故意不给资源", "怎么做都不对"],
+    explanation: "紧急任务本身不等于霸凌；如果不合理期限、资源剥夺、抢夺成果或不断改变标准反复发生，可能是在利用权力让人失败。",
+  },
+  {
+    title: "职场威吓与报复",
+    words: ["不想干就滚", "让你过不了试用期", "影响你转正", "行业里混不下去", "敢举报试试", "给你穿小鞋", "别想升职", "开除你"],
+    explanation: "用职位、排班、绩效、转正或行业声誉压制申诉，是需要保存记录并寻求组织、工会或法律支持的权力威吓。",
   },
 ];
 
@@ -155,7 +201,7 @@ function assessRisk(input: string): RiskAssessment {
   return { level, label: "未识别到明确紧急信号", summary: "这不代表绝对安全。截图外的行为、环境和你的直觉仍然重要。", findings: [] };
 }
 
-function analyseText(input: string): Analysis {
+function analyseText(input: string, context: ConversationContext): Analysis {
   const compact = input.trim();
   const lines = compact.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   const findings = languagePatterns
@@ -163,6 +209,7 @@ function analyseText(input: string): Analysis {
     .filter((item) => item.evidence.length > 0);
   const facts = lines.filter((line) => factSignals.test(line)).slice(0, 6);
   const featureText = findings.map((item) => item.title).join("、");
+  const contextLabel = { relationship: "伴侣 / 暧昧关系", family: "家人 / 原生家庭", workplace: "职场", other: "朋友 / 其他" }[context];
   const translation = findings.length
     ? `这段话里，真正需要处理的事实${facts.length ? `包括：“${facts[0].slice(0, 46)}${facts[0].length > 46 ? "…" : ""}”` : "并不清楚"}。与此同时，对方用了${featureText}等表达，让你从讨论事情转向证明自己“不坏、不自私、没记错”。你不需要先接受这些评价，才有资格讨论事实和边界。仅凭这段对话不能诊断NPD，但不需要等到一个诊断成立，你才可以重视自己的不舒服。`
     : "这段文字没有命中当前词库中的典型表达。它不代表关系一定健康，也不代表你的感受不重要；这里只能说，现有文字不足以支持更具体的判断。可以补充前后文、重复发生的行为，以及你拒绝后对方如何反应。";
@@ -171,7 +218,12 @@ function analyseText(input: string): Analysis {
     facts,
     translation,
     risk: assessRisk(compact),
-    replies: [
+    contextLabel,
+    replies: context === "workplace" ? [
+      "为避免理解偏差，请书面确认这项任务的交付标准、优先级、截止时间和可用资源。",
+      "我愿意讨论具体工作问题，但请把反馈对应到任务和标准，不使用人格评价。",
+      "我会按今天确认的要求推进。如果标准或期限有变化，请在邮件中更新，我会据此重新安排。",
+    ] : [
       "我只讨论具体发生的事情，不接受对我人格的评价。请把你的请求和时间说清楚。",
       "我听到了你的情绪，但我不会在被羞辱或威胁时继续沟通。我们之后再谈。",
       "我现在不回复。等我确认安全、想清楚边界后，再决定是否继续这段对话。",
@@ -196,6 +248,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [isReading, setIsReading] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [context, setContext] = useState<ConversationContext>("relationship");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const canAnalyse = text.trim().length >= 8 && !isReading;
@@ -254,13 +307,13 @@ export default function Home() {
 
   function runAnalysis() {
     if (!canAnalyse) return;
-    setAnalysis(analyseText(text));
+    setAnalysis(analyseText(text, context));
     requestAnimationFrame(() => document.querySelector("#result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   function loadExample() {
     setText("对方：我什么时候骂你了？你就是太敏感，开不起玩笑。\n对方：我养你这么大都是为了你好，你现在必须马上发位置给我。\n我：我只是说刚才那句话让我很难受。\n对方：还不是因为你不听话，谁让你先惹我。\n对方：明天晚上八点回家。");
-    setMode("text"); setAnalysis(null); setStatus("这是演示文字，你可以直接查看输出结构。");
+    setMode("text"); setContext("family"); setAnalysis(null); setStatus("这是演示文字，你可以直接查看输出结构。");
   }
 
   return (
@@ -336,6 +389,7 @@ export default function Home() {
           ) : (
             <div className="text-view">
               <label htmlFor="conversation">识别结果 / 聊天文字</label>
+              <div className="context-picker" aria-label="对话发生场景"><span>这段对话来自</span>{([['relationship','伴侣 / 暧昧'],['family','家人'],['workplace','职场'],['other','朋友 / 其他']] as const).map(([value,label]) => <button type="button" className={context === value ? "active" : ""} onClick={() => { setContext(value); setAnalysis(null); }} key={value}>{label}</button>)}</div>
               <textarea id="conversation" value={text} onChange={(event) => { setText(event.target.value.slice(0, 12000)); setAnalysis(null); }} placeholder={'建议在每段前标注“我：”“对方：”，并删除姓名、电话、地址等隐私信息。'} />
               <div className="text-meta"><span>{status || "请校对人物、金额，以及“不、没、别”等否定词。"}</span><span>{count} / 12000</span></div>
               <div className="action-row"><button className="ghost" onClick={loadExample}>先看演示</button><button className="primary" disabled={!canAnalyse} onClick={runAnalysis}>替我拆解这段话</button></div>
@@ -358,7 +412,7 @@ export default function Home() {
       <SelfCheck />
 
       {analysis && <section className="result" id="result">
-        <div className="result-heading"><p className="eyebrow">对话拆解结果</p><h2>先看安全，再看这段话</h2><p>以下提示不诊断任何人。它只告诉你：原文里出现了什么，以及你可以先保护什么。</p></div>
+        <div className="result-heading"><p className="eyebrow">对话拆解结果 · {analysis.contextLabel}</p><h2>先看安全，再看这段话</h2><p>以下提示不诊断任何人。它只告诉你：原文里出现了什么，以及你可以先保护什么。</p></div>
         <article className={`risk-card ${analysis.risk.level}`}>
           <div><span className="risk-dot" /><p className="card-label">风险分流</p><h3>{analysis.risk.label}</h3><p>{analysis.risk.summary}</p></div>
           {analysis.risk.findings.length > 0 && <div className="risk-findings">{analysis.risk.findings.map((finding) => <div key={finding.title}><strong>{finding.title}</strong><p>命中原话：{finding.evidence.map((item) => `“${item}”`).join("、")}</p><span>{finding.guidance}</span></div>)}</div>}

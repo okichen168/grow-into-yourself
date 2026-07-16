@@ -1,6 +1,9 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import CommunityBoard from "./components/community-board";
+import SelfCheck from "./components/self-check";
+import ThemeControls from "./components/theme-controls";
 
 type Finding = { title: string; evidence: string[]; explanation: string };
 type RiskLevel = "urgent" | "high" | "watch" | "none";
@@ -264,16 +267,17 @@ export default function Home() {
     <main>
       <div className="emergency-strip">如果你正处于人身危险：先离开现场，拨打 <a href="tel:110">110</a>；需要急救拨打 <a href="tel:120">120</a></div>
       <header className="topbar">
-        <a className="brand" href="#top"><span className="brand-mark">清</span><span>清醒中译中</span></a>
-        <nav><a href="#learn">认识情感操控</a><a href="#tool">拆解聊天</a><a href="#safety">安全求助</a><a href="#community">匿名树洞</a></nav>
+        <a className="brand" href="#top"><span className="brand-mark">长</span><span>长成自己</span></a>
+        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#safety">安全求助</a></nav>
+        <ThemeControls />
       </header>
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <p className="eyebrow">反情感暴力 · 对话拆解工具</p>
-          <h1>你不是太敏感。<br />先把这段话放到这里。</h1>
+          <p className="eyebrow">长成自己 · 反情感暴力与关系安全工具</p>
+          <h1>把自己领回来，<br />再按自己的方式长大一次。</h1>
           <p className="hero-subtitle">当一段对话让你反复内疚、怀疑自己、解释不清，我们陪你把真正的信息、情绪压力和危险信号一层层分开。</p>
-          <div className="hero-actions"><a className="hero-primary" href="#tool">开始拆解聊天</a><a className="hero-secondary" href="#learn">先了解情感操控</a></div>
+          <div className="hero-actions"><a className="hero-primary" href="#tool">开始拆解聊天</a><a className="hero-secondary" href="#self-check">先做关系自查</a></div>
           <div className="trust-row"><span>匿名使用</span><span>截图本机识别</span><span>不用于训练AI</span><span>不会公开内容</span></div>
         </div>
         <div className="comfort-card" aria-label="写给正在怀疑自己的你">
@@ -346,11 +350,13 @@ export default function Home() {
       <section className="pain-section">
         <div className="section-heading"><p className="eyebrow">你可能正在经历</p><h2>有些难受，很难向别人解释</h2></div>
         <div className="pain-grid">
-          <article><p>“是不是我真的太敏感？”</p><span>先区分你的感受、可核实事实和对方给你的标签。</span></article>
-          <article><p>“我解释了很久，怎么又成了我的错？”</p><span>先停止自证，看看话题在哪一步被转移。</span></article>
-          <article><p>“我想离开，可钱、家人和威胁都卡着我。”</p><span>这不只是沟通问题，需要安全计划、法律与现实支持。</span></article>
+          <a href="#self-check"><article><p>“是不是我真的太敏感？”</p><span>点进来做一次非诊断式关系与身心状态自查。</span></article></a>
+          <a href="#self-check"><article><p>“我解释了很久，怎么又成了我的错？”</p><span>辨认否认、羞辱、冷处理、话题转移与强制控制。</span></article></a>
+          <a href="#safety"><article><p>“我想离开，可钱、家人和威胁都卡着我。”</p><span>先看危险信号和中国地区现实求助，不把它只当沟通问题。</span></article></a>
         </div>
       </section>
+
+      <SelfCheck />
 
       {analysis && <section className="result" id="result">
         <div className="result-heading"><p className="eyebrow">对话拆解结果</p><h2>先看安全，再看这段话</h2><p>以下提示不诊断任何人。它只告诉你：原文里出现了什么，以及你可以先保护什么。</p></div>
@@ -371,19 +377,14 @@ export default function Home() {
         <div className="help-grid">{helpLines.map((line) => <a href={`tel:${line.number.split(" ")[0]}`} key={line.number}><strong>{line.number}</strong><div><h3>{line.name}</h3><p>{line.note}</p></div><span>拨打 ›</span></a>)}</div>
       </section>
 
-      <section className="community" id="community">
-        <span className="community-kicker">后续功能 · 匿名树洞</span>
-        <h2>“原来不止我一个人经历过。”</h2>
-        <p>以后这里可以匿名分享被操控的原话、自己的醒悟和离开后的生活。但在隐私审核、举报、未成年人保护和危机内容处理机制完成前，我们不会匆忙开放。</p>
-        <button disabled>正在筹备安全规则</button>
-      </section>
+      <CommunityBoard />
 
       <section className="credibility">
-        <strong>我们不虚构专家背书</strong>
-        <p>当前测试版依据公开心理学、反家庭暴力、危机干预与公共法律服务资料整理，尚未声称由某数量的咨询师共同制作。后续只有在真实邀请持证心理咨询师、社会工作者和法律工作者审核后，才会公开姓名、资质与参与方式。</p>
+        <strong>公开证据，也公开边界</strong>
+        <p>这是一个跨学科研究共建计划，正在邀请海外高校心理学、心理健康、社会工作与数理统计相关博士生参与方法审核与迭代。首版已核对五组共100+项论文、量表、专业规范与同类产品案例；后续目标是维护100—200篇核心证据库。正式参与者、资质与参与方式会在本人确认后公开，不把未来合作写成已经发生的专家背书。</p>
       </section>
 
-      <footer><strong>清醒中译中</strong><span>反对情感暴力 · 不给任何人贴诊断标签 · 把选择还给你</span></footer>
+      <footer><strong>长成自己</strong><span>反对情感暴力 · 不给任何人贴诊断标签 · 把选择还给你</span><a href="/admin">内容管理</a></footer>
     </main>
   );
 }

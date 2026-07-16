@@ -8,7 +8,7 @@ Grow Into Yourself offers a local screenshot-reading flow, a paste-and-review co
 
 ## Key features
 
-- Local OCR for English and Chinese chat screenshots, with manual correction before analysis.
+- Local OCR for English and Chinese chat screenshots, with automatic line and sentence reconstruction.
 - Separate check-ins for partner/dating, family, workplace and friendship contexts.
 - Five device-local visual themes and accessible motion preferences.
 - Moderated community notes, supportive replies and a rotatable globe.

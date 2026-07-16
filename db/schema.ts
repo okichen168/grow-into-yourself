@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const communityPosts = sqliteTable("community_posts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -7,6 +7,24 @@ export const communityPosts = sqliteTable("community_posts", {
   topic: text("topic").notNull().default("想对姐妹说"),
   status: text("status").notNull().default("pending"),
   riskLevel: text("risk_level").notNull().default("none"),
+  language: text("language").notNull().default("zh"),
+  countryCode: text("country_code"),
+  countryName: text("country_name"),
+  region: text("region"),
+  city: text("city"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  hearts: integer("hearts").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedAt: text("reviewed_at"),
+});
+
+export const communityReplies = sqliteTable("community_replies", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  postId: integer("post_id").notNull(),
+  content: text("content").notNull(),
+  language: text("language").notNull().default("zh"),
+  status: text("status").notNull().default("pending"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   reviewedAt: text("reviewed_at"),
 });

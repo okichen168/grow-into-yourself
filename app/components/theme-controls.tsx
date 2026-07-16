@@ -11,13 +11,13 @@ const themes = [
 ];
 
 const fonts = [
-  { id: "soft", name: "圆体" },
-  { id: "clear", name: "黑体" },
-  { id: "kai", name: "楷体" },
-  { id: "reading", name: "宋体" },
+  { id: "soft", name: "圆体", en: "Soft" },
+  { id: "clear", name: "黑体", en: "Clear" },
+  { id: "kai", name: "楷体", en: "Kai" },
+  { id: "reading", name: "宋体", en: "Reading" },
 ];
 
-export default function ThemeControls() {
+export default function ThemeControls({ language = "zh" }: { language?: "zh" | "en" }) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState(() => typeof window === "undefined" ? "embrace" : localStorage.getItem("grow-theme") || "embrace");
   const [font, setFont] = useState(() => typeof window === "undefined" ? "soft" : localStorage.getItem("grow-font") || "soft");
@@ -42,14 +42,14 @@ export default function ThemeControls() {
 
   return (
     <div className="theme-control">
-      <button className="theme-trigger" onClick={() => setOpen((value) => !value)} aria-expanded={open}>◐ <span>换个感觉</span></button>
+      <button className="theme-trigger" onClick={() => setOpen((value) => !value)} aria-expanded={open}>◐ <span>{language === "en" ? "Change the mood" : "换个感觉"}</span></button>
       {open && <div className="theme-panel">
-        <div className="theme-panel-head"><strong>选一个让你舒服的界面</strong><button onClick={() => setOpen(false)} aria-label="关闭">×</button></div>
-        <p>颜色和字体只保存在当前设备，不会和你的聊天内容关联。</p>
-        <span className="choice-label">颜色</span>
-        <div className="theme-options">{themes.map((item) => <button aria-label={`切换到${item.name}主题`} className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i></button>)}</div>
-        <span className="choice-label">字体</span>
-        <div className="font-options">{fonts.map((item) => <button data-font-preview={item.id} className={font === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{item.name}</button>)}</div>
+        <div className="theme-panel-head"><strong>{language === "en" ? "Pick what feels easy on the eyes" : "选一个让你舒服的界面"}</strong><button onClick={() => setOpen(false)} aria-label={language === "en" ? "Close" : "关闭"}>×</button></div>
+        <p>{language === "en" ? "Your theme stays on this device. It isn’t linked to your chats." : "颜色和字体只保存在当前设备，不会和你的聊天内容关联。"}</p>
+        <span className="choice-label">{language === "en" ? "Colour" : "颜色"}</span>
+        <div className="theme-options">{themes.map((item) => <button aria-label={language === "en" ? `Switch colour theme ${item.id}` : `切换到${item.name}主题`} className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i></button>)}</div>
+        <span className="choice-label">{language === "en" ? "Type" : "字体"}</span>
+        <div className="font-options">{fonts.map((item) => <button data-font-preview={item.id} className={font === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{language === "en" ? item.en : item.name}</button>)}</div>
       </div>}
     </div>
   );

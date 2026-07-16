@@ -209,7 +209,7 @@ function analyseText(input: string, context: ConversationContext): Analysis {
     .filter((item) => item.evidence.length > 0);
   const facts = lines.filter((line) => factSignals.test(line)).slice(0, 6);
   const featureText = findings.map((item) => item.title).join("、");
-  const contextLabel = { relationship: "伴侣 / 暧昧关系", family: "家人 / 原生家庭", workplace: "职场", other: "朋友 / 其他" }[context];
+  const contextLabel = { relationship: "伴侣 / 暧昧关系", family: "家人 / 原生家庭", workplace: "职场", other: "朋友" }[context];
   const translation = findings.length
     ? `这段话里，真正需要处理的事实${facts.length ? `包括：“${facts[0].slice(0, 46)}${facts[0].length > 46 ? "…" : ""}”` : "并不清楚"}。与此同时，对方用了${featureText}等表达，让你从讨论事情转向证明自己“不坏、不自私、没记错”。你不需要先接受这些评价，才有资格讨论事实和边界。仅凭这段对话不能诊断NPD，但不需要等到一个诊断成立，你才可以重视自己的不舒服。`
     : "这段文字没有命中当前词库中的典型表达。它不代表关系一定健康，也不代表你的感受不重要；这里只能说，现有文字不足以支持更具体的判断。可以补充前后文、重复发生的行为，以及你拒绝后对方如何反应。";
@@ -320,7 +320,7 @@ export default function Home() {
     <main>
       <header className="topbar">
         <a className="brand" href="#top"><span className="brand-mark">长</span><span>长成自己</span></a>
-        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#community">匿名互助</a></nav>
+        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#community">匿名互助</a><a href="/en">EN</a></nav>
         <ThemeControls />
       </header>
 
@@ -389,7 +389,7 @@ export default function Home() {
           ) : (
             <div className="text-view">
               <label htmlFor="conversation">识别结果 / 聊天文字</label>
-              <div className="context-picker" aria-label="对话发生场景"><span>这段对话来自</span>{([['relationship','伴侣 / 暧昧'],['family','家人'],['workplace','职场'],['other','朋友 / 其他']] as const).map(([value,label]) => <button type="button" className={context === value ? "active" : ""} onClick={() => { setContext(value); setAnalysis(null); }} key={value}>{label}</button>)}</div>
+              <div className="context-picker" aria-label="对话发生场景"><span>这段对话来自</span>{([['relationship','伴侣 / 暧昧'],['family','家人'],['workplace','职场'],['other','朋友']] as const).map(([value,label]) => <button type="button" className={context === value ? "active" : ""} onClick={() => { setContext(value); setAnalysis(null); }} key={value}>{label}</button>)}</div>
               <textarea id="conversation" value={text} onChange={(event) => { setText(event.target.value.slice(0, 12000)); setAnalysis(null); }} placeholder={'建议在每段前标注“我：”“对方：”，并删除姓名、电话、地址等隐私信息。'} />
               <div className="text-meta"><span>{status || "请校对人物、金额，以及“不、没、别”等否定词。"}</span><span>{count} / 12000</span></div>
               <div className="action-row"><button className="ghost" onClick={loadExample}>先看演示</button><button className="primary" disabled={!canAnalyse} onClick={runAnalysis}>替我拆解这段话</button></div>

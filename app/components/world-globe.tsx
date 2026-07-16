@@ -127,5 +127,5 @@ export default function WorldGlobe({ posts }: { posts: GlobePost[] }) {
     };
   }, [posts]);
 
-  return <div className="world-globe"><canvas ref={canvasRef} aria-label="可以上下左右自由旋转的世界地图地球仪。粉色星点代表审核通过的匿名留言。" /><span>✦ 上下左右拖动 · 360°自由旋转 ✦</span></div>;
+  return <div className="world-globe"><canvas ref={canvasRef} aria-label="A freely rotatable globe. Small stars represent approved anonymous community messages." /><span>✦ Drag in any direction to explore ✦</span></div>;
 }

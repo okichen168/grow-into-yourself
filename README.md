@@ -1,32 +1,34 @@
-# 长成自己
+# Grow Into Yourself
 
-“长成自己”是一个面向手机使用的关系信息过滤与心理健康科普网站。它帮助用户从伴侣、家人、职场和朋友的对话中区分事实、压力与风险信号，并提供简短、可执行的自我保护建议。
+A privacy-first relationship clarity tool that helps people separate facts, emotional pressure and safety signals in difficult conversations.
 
-网站不根据聊天片段诊断 NPD 或其他人格障碍，也不能替代心理咨询、医疗、法律意见或紧急救助。
+## What it does
 
-## 当前功能
+Grow Into Yourself offers a local screenshot-reading flow, a paste-and-review conversation tool, relationship-specific check-ins, practical learning pages and a moderated anonymous community wall.
 
-- 中文和英文页面
-- 微信聊天截图本地 OCR 与文字校对
-- 伴侣、家人、职场、朋友四类关系分析
-- 四套独立的十题自查与分项结果
-- 心理健康与情感操控科普
-- 匿名互助留言、鼓励回复和爱心
-- 世界地球仪展示
-- 留言与反馈审核后台
-- 五套动态主题及本地字体偏好
+## Key features
 
-## 隐私边界
+- Local OCR for English and Chinese chat screenshots, with manual correction before analysis.
+- Separate check-ins for partner/dating, family, workplace and friendship contexts.
+- Five device-local visual themes and accessible motion preferences.
+- Moderated community notes, supportive replies and a rotatable globe.
+- A protected admin area for reviewing community submissions and feedback.
 
-- 截图识别和聊天分析默认在用户设备中完成。
-- 截图、自查答案和分析结果不写入后台数据库。
-- 匿名留言、回复和产品反馈只有在用户主动提交时才会保存。
-- 留言与回复经过审核后才公开。
-- 运行密钥只通过托管环境变量提供，不应写入源码或提交到 GitHub。
+## Privacy principles
 
-## 本地运行
+- Screenshot OCR happens in the browser when the feature is available.
+- Private screenshots and chat text are not published or used to train AI.
+- Self-check answers remain on the device unless someone actively submits a community note or feedback.
+- Community notes and replies are saved only after active submission. Approved notes are public.
+- Secrets, local databases, exports and user uploads must never be committed.
 
-需要 Node.js 22.13 或更高版本。
+## What it cannot diagnose
+
+This tool cannot diagnose NPD, any personality disorder, trauma, abuse, a crime, or another person’s intention. It does not replace emergency, medical, legal or mental-health support.
+
+## Local development
+
+Requires Node.js 22.13 or newer.
 
 ```bash
 npm ci
@@ -34,43 +36,23 @@ cp .env.example .env.local
 npm run dev
 ```
 
-项目使用 Vinext、Cloudflare Workers、D1 和 Drizzle。`.openai/hosting.json` 保存 Sites 项目标识及逻辑数据库绑定；真实数据库和运行密钥不在代码仓库中。
+## Environment variables
 
-## 环境变量
+| Variable | Purpose |
+| --- | --- |
+| `ADMIN_KEY` | Protects the admin API at runtime. Keep it in the deployment environment or `.env.local`. |
 
-复制 `.env.example` 为 `.env.local`，为本地管理后台设置一条足够长的随机密钥。不要提交 `.env.local`。
+Never commit `.env.local` or a real key.
 
-| 名称 | 用途 | 是否进入 GitHub |
-| --- | --- | --- |
-| `ADMIN_KEY` | 保护内容审核后台接口 | 否 |
-
-## 检查与构建
+## Testing
 
 ```bash
 npm run lint
 npm run build
+npm test --if-present
+npx vinext check
 ```
 
-修改数据库结构后，先生成并检查 Drizzle migration：
+## Deployment notes
 
-```bash
-npm run db:generate
-```
-
-## 部署说明
-
-当前线上版本由 OpenAI Sites 托管。保存到 GitHub 不会自动覆盖或删除现有线上网站。
-
-以后接入持续部署时，部署平台需要：
-
-1. 安装锁定依赖并运行 `npm run build`。
-2. 提供 Cloudflare Workers 兼容的运行环境。
-3. 绑定 `.openai/hosting.json` 中声明的 D1 数据库 `DB`。
-4. 在部署平台的加密环境变量中设置 `ADMIN_KEY`。
-5. 运行现有 Drizzle migrations，但不要把真实数据库、留言或反馈导入 GitHub。
-
-部署前先使用预览环境验证首页、英文页、科普页、匿名留言、反馈和审核后台，再更新正式网址。
-
-## 仓库安全
-
-`.gitignore` 已排除环境变量、密钥、数据库文件、上传文件、导出数据、用户留言与反馈导出。提交前仍应检查变更清单，确认没有截图、令牌或用户数据。
+The project uses Vinext, Cloudflare Workers, D1 and Drizzle. Keep `.openai/hosting.json` aligned with the deployment environment. Run the build and verify a preview before any production release. Saving source changes to GitHub does not deploy or overwrite an existing site.

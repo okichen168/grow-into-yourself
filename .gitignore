@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+.vinext/
 
 # misc
 .DS_Store
@@ -59,3 +60,10 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+
+# local build output and user-generated content
+/build-output/
+/tessdata-cache/
+/uploads/
+/feedback-exports/
+/message-exports/

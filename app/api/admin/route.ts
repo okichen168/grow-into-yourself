@@ -10,7 +10,7 @@ async function authorized(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!await authorized(request)) return Response.json({ error: "未授权" }, { status: 401 });
+  if (!await authorized(request)) return Response.json({ error: "Unauthorised" }, { status: 401 });
   try {
     const db = await getDb();
     const [posts, replies, feedback] = await Promise.all([
@@ -20,29 +20,29 @@ export async function GET(request: Request) {
     ]);
     return Response.json({ posts, replies, feedback });
   } catch {
-    return Response.json({ error: "后台数据暂不可用" }, { status: 500 });
+    return Response.json({ error: "Admin data is unavailable" }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
-  if (!await authorized(request)) return Response.json({ error: "未授权" }, { status: 401 });
+  if (!await authorized(request)) return Response.json({ error: "Unauthorised" }, { status: 401 });
   try {
     const payload = (await request.json()) as { kind?: "post" | "reply" | "feedback"; id?: number; status?: string };
     const id = Number(payload.id);
-    if (!Number.isInteger(id)) return Response.json({ error: "无效记录" }, { status: 400 });
+    if (!Number.isInteger(id)) return Response.json({ error: "Invalid record" }, { status: 400 });
     const db = await getDb();
     if (payload.kind === "post") {
-      if (!['approved', 'rejected', 'pending'].includes(payload.status ?? "")) return Response.json({ error: "无效状态" }, { status: 400 });
+      if (!['approved', 'rejected', 'pending'].includes(payload.status ?? "")) return Response.json({ error: "Invalid status" }, { status: 400 });
       await db.update(communityPosts).set({ status: payload.status, reviewedAt: new Date().toISOString() }).where(eq(communityPosts.id, id));
     } else if (payload.kind === "reply") {
-      if (!["approved", "rejected", "pending"].includes(payload.status ?? "")) return Response.json({ error: "无效状态" }, { status: 400 });
+      if (!["approved", "rejected", "pending"].includes(payload.status ?? "")) return Response.json({ error: "Invalid status" }, { status: 400 });
       await db.update(communityReplies).set({ status: payload.status, reviewedAt: new Date().toISOString() }).where(eq(communityReplies.id, id));
     } else {
-      if (!['new', 'reviewed', 'archived'].includes(payload.status ?? "")) return Response.json({ error: "无效状态" }, { status: 400 });
+      if (!['new', 'reviewed', 'archived'].includes(payload.status ?? "")) return Response.json({ error: "Invalid status" }, { status: 400 });
       await db.update(feedbackItems).set({ status: payload.status }).where(eq(feedbackItems.id, id));
     }
     return Response.json({ ok: true });
   } catch {
-    return Response.json({ error: "更新失败" }, { status: 500 });
+    return Response.json({ error: "Update failed" }, { status: 500 });
   }
 }

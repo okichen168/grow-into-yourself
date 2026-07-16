@@ -22,7 +22,8 @@ export default function WorldGlobe({ posts }: { posts: GlobePost[] }) {
     let width = 0;
     let rotation = -105;
     let tilt = -12;
-    let pointer: { x: number; y: number; rotation: number; tilt: number } | null = null;
+    let roll = 0;
+    let pointer: { x: number; y: number; rotation: number; tilt: number; roll: number } | null = null;
     let lastTime = performance.now();
 
     const resize = () => {
@@ -45,22 +46,36 @@ export default function WorldGlobe({ posts }: { posts: GlobePost[] }) {
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, width);
 
-      const projection = geoOrthographic().translate([width / 2, width / 2]).scale(width * .44).clipAngle(90).precision(.25).rotate([rotation, tilt]);
+      const projection = geoOrthographic().translate([width / 2, width / 2]).scale(width * .41).clipAngle(90).precision(.25).rotate([rotation, tilt, roll]);
       const path = geoPath(projection, context);
 
+      const halo = context.createRadialGradient(width / 2, width / 2, width * .22, width / 2, width / 2, width * .52);
+      halo.addColorStop(0, "rgba(55, 224, 255, .08)"); halo.addColorStop(.72, "rgba(83, 105, 255, .13)"); halo.addColorStop(1, "rgba(83, 105, 255, 0)");
+      context.fillStyle = halo; context.fillRect(0, 0, width, width);
+      for (let i = 0; i < 42; i += 1) {
+        const x = (i * 83 + 17) % width; const y = (i * 47 + 31) % width;
+        const pulse = .22 + .35 * (1 + Math.sin(time * .0015 + i)) / 2;
+        context.beginPath(); context.arc(x, y, i % 7 === 0 ? 1.35 : .7, 0, Math.PI * 2); context.fillStyle = `rgba(191,231,255,${pulse})`; context.fill();
+      }
+      context.save(); context.translate(width / 2, width / 2); context.rotate(time * .00004);
+      context.beginPath(); context.ellipse(0, 0, width * .49, width * .15, -.22, 0, Math.PI * 2);
+      context.lineWidth = 1; context.strokeStyle = "rgba(119, 232, 255, .35)"; context.stroke(); context.restore();
+
       context.beginPath(); path({ type: "Sphere" });
-      context.fillStyle = "rgba(170, 215, 231, .96)"; context.fill();
-      context.lineWidth = 1.2; context.strokeStyle = "rgba(255,255,255,.9)"; context.stroke();
+      const ocean = context.createRadialGradient(width * .36, width * .30, width * .04, width / 2, width / 2, width * .46);
+      ocean.addColorStop(0, "#2b94bd"); ocean.addColorStop(.58, "#123f68"); ocean.addColorStop(1, "#071a3a");
+      context.shadowBlur = 28; context.shadowColor = "rgba(90,226,255,.72)"; context.fillStyle = ocean; context.fill();
+      context.shadowBlur = 0; context.lineWidth = 1.6; context.strokeStyle = "rgba(151,241,255,.92)"; context.stroke();
 
       context.beginPath(); path(geoGraticule10());
-      context.lineWidth = .55; context.strokeStyle = "rgba(255,255,255,.34)"; context.stroke();
+      context.lineWidth = .58; context.strokeStyle = "rgba(115, 221, 247, .28)"; context.stroke();
 
       context.beginPath(); path(countries);
-      context.fillStyle = "rgba(242, 232, 220, .98)"; context.fill();
-      context.lineWidth = .75; context.strokeStyle = "rgba(100, 126, 132, .55)"; context.stroke();
+      context.fillStyle = "rgba(47, 86, 116, .96)"; context.fill();
+      context.lineWidth = .9; context.strokeStyle = "rgba(139, 235, 255, .76)"; context.stroke();
 
       context.beginPath(); path(borders);
-      context.lineWidth = .55; context.strokeStyle = "rgba(119, 133, 132, .46)"; context.stroke();
+      context.lineWidth = .62; context.strokeStyle = "rgba(120, 214, 239, .48)"; context.stroke();
 
       const centre = projection.invert?.([width / 2, width / 2]) || [0, 0];
       for (const post of posts.filter((item) => item.latitude != null && item.longitude != null).slice(0, 80)) {
@@ -72,21 +87,24 @@ export default function WorldGlobe({ posts }: { posts: GlobePost[] }) {
         context.beginPath(); context.arc(projected[0], projected[1], radius * 2.2, 0, Math.PI * 2);
         context.fillStyle = "rgba(255, 119, 161, .18)"; context.fill();
         context.beginPath(); context.arc(projected[0], projected[1], radius, 0, Math.PI * 2);
-        context.fillStyle = "#f26f9b"; context.fill();
+        context.shadowBlur = 12; context.shadowColor = "#ff75bc"; context.fillStyle = "#ff8dc7"; context.fill(); context.shadowBlur = 0;
         context.lineWidth = 1.5; context.strokeStyle = "rgba(255,255,255,.95)"; context.stroke();
       }
       frame = requestAnimationFrame(draw);
     };
 
     const down = (event: PointerEvent) => {
-      pointer = { x: event.clientX, y: event.clientY, rotation, tilt };
+      pointer = { x: event.clientX, y: event.clientY, rotation, tilt, roll };
       canvas.setPointerCapture(event.pointerId);
       canvas.style.cursor = "grabbing";
     };
     const move = (event: PointerEvent) => {
       if (!pointer) return;
-      rotation = pointer.rotation + (event.clientX - pointer.x) * .28;
-      tilt = Math.max(-65, Math.min(65, pointer.tilt - (event.clientY - pointer.y) * .2));
+      const dx = event.clientX - pointer.x;
+      const dy = event.clientY - pointer.y;
+      rotation = pointer.rotation + dx * .34;
+      tilt = pointer.tilt - dy * .34;
+      roll = pointer.roll + dx * dy * .00022;
     };
     const up = (event: PointerEvent) => {
       pointer = null;
@@ -109,5 +127,5 @@ export default function WorldGlobe({ posts }: { posts: GlobePost[] }) {
     };
   }, [posts]);
 
-  return <div className="world-globe"><canvas ref={canvasRef} aria-label="可拖动的真实世界地图地球仪。粉色星点代表审核通过的匿名留言。" /><span>✦ drag to turn · 拖动地球 ✦</span></div>;
+  return <div className="world-globe"><canvas ref={canvasRef} aria-label="可以上下左右自由旋转的世界地图地球仪。粉色星点代表审核通过的匿名留言。" /><span>✦ 上下左右拖动 · 360°自由旋转 ✦</span></div>;
 }

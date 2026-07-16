@@ -27,8 +27,27 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# environment files and credentials
 .env*
+!.env.example
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# private or user-generated data
+/data/
+/private/
+/uploads/
+/exports/
+*.db
+*.sqlite
+*.sqlite3
+*.jsonl
+feedback-export*.json
+community-export*.json
+admin-export*.json
 
 # vercel
 .vercel

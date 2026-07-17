@@ -2,6 +2,8 @@
 
 A privacy-first relationship clarity tool that helps people separate facts, emotional pressure and safety signals in difficult conversations.
 
+This is an early public test. Features, wording and availability may change as the project is reviewed and improved.
+
 ## What it does
 
 Grow Into Yourself offers a local screenshot-reading flow, a paste-and-review conversation tool, relationship-specific check-ins, practical learning pages and a moderated anonymous community wall.
@@ -14,9 +16,11 @@ Grow Into Yourself offers a local screenshot-reading flow, a paste-and-review co
 - Moderated community notes, supportive replies and a rotatable globe.
 - A protected admin area for reviewing community submissions and feedback.
 
+The planned GitHub Pages test will include only browser-based features. Community notes and login are planned next with Supabase and are not part of the static test.
+
 ## Privacy principles
 
-- Screenshot OCR happens in the browser when the feature is available.
+- Screenshots are processed locally in the browser. The English and Chinese OCR files are loaded as static assets and the selected images are not sent to the application server.
 - Private screenshots and chat text are not published or used to train AI.
 - Self-check answers remain on the device unless someone actively submits a community note or feedback.
 - Community notes and replies are saved only after active submission. Approved notes are public.
@@ -55,4 +59,6 @@ npx vinext check
 
 ## Deployment notes
 
-The project uses Vinext, Cloudflare Workers, D1 and Drizzle. Keep `.openai/hosting.json` aligned with the deployment environment. Run the build and verify a preview before any production release. Saving source changes to GitHub does not deploy or overwrite an existing site.
+The full project uses Vinext, Cloudflare Workers, D1 and Drizzle. Keep `.openai/hosting.json` aligned with the deployment environment. Run the build and verify a preview before any production release. Saving source changes to GitHub does not deploy or overwrite an existing site.
+
+A future static GitHub Pages test should expose only browser-based features and must not depend on Worker API routes or D1. Community notes and email login are planned next with Supabase. Mainland China access through GitHub Pages is not guaranteed.

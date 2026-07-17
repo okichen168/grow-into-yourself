@@ -1,10 +1,10 @@
 # Grow Into Yourself
 
+**Live demo:** https://clear-translate.creamy-scarf-2160.chatgpt.site
+
 ![From confusion to clarity](./docs/readme-hero.jpg)
 
-Grow Into Yourself is a privacy-first space for people who feel confused, blamed, or controlled in difficult relationships.
-
-It helps users separate facts, emotional pressure, safety signals, and possible next-boundary words from difficult chats — without diagnosing anyone or labelling anyone as NPD.
+Grow Into Yourself is a privacy-first clarity tool for difficult chats. It helps separate facts, pressure, safety signals and calmer boundary words.
 
 This is an early public test. Features, wording and availability may change as the project is reviewed and improved.
 

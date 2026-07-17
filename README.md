@@ -1,5 +1,7 @@
 # Grow Into Yourself
 
+![From confusion to clarity](./docs/readme-hero.jpg)
+
 Grow Into Yourself is a privacy-first space for people who feel confused, blamed, or controlled in difficult relationships.
 
 It helps users separate facts, emotional pressure, safety signals, and possible next-boundary words from difficult chats — without diagnosing anyone or labelling anyone as NPD.

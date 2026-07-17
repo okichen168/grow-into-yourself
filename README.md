@@ -1,6 +1,8 @@
 # Grow Into Yourself
 
-A privacy-first relationship clarity tool that helps people separate facts, emotional pressure and safety signals in difficult conversations.
+Grow Into Yourself is a privacy-first space for people who feel confused, blamed, or controlled in difficult relationships.
+
+It helps users separate facts, emotional pressure, safety signals, and possible next-boundary words from difficult chats — without diagnosing anyone or labelling anyone as NPD.
 
 This is an early public test. Features, wording and availability may change as the project is reviewed and improved.
 
@@ -15,8 +17,6 @@ Grow Into Yourself offers a local screenshot-reading flow, a paste-and-review co
 - Five device-local visual themes and accessible motion preferences.
 - Moderated community notes, supportive replies and a rotatable globe.
 - A protected admin area for reviewing community submissions and feedback.
-
-The planned GitHub Pages test will include only browser-based features. Community notes and login are planned next with Supabase and are not part of the static test.
 
 ## Privacy principles
 
@@ -59,6 +59,4 @@ npx vinext check
 
 ## Deployment notes
 
-The full project uses Vinext, Cloudflare Workers, D1 and Drizzle. Keep `.openai/hosting.json` aligned with the deployment environment. Run the build and verify a preview before any production release. Saving source changes to GitHub does not deploy or overwrite an existing site.
-
-A future static GitHub Pages test should expose only browser-based features and must not depend on Worker API routes or D1. Community notes and email login are planned next with Supabase. Mainland China access through GitHub Pages is not guaranteed.
+The project uses Vinext, Cloudflare Workers, D1 and Drizzle. Keep `.openai/hosting.json` aligned with the deployment environment. Run the build and verify a preview before any production release. Saving source changes to GitHub does not deploy or overwrite an existing site.

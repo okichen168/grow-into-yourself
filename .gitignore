@@ -61,6 +61,12 @@ next-env.d.ts
 /outputs/
 /work/
 
+# local visual QA and duplicate preview copies
+/.artifacts/
+/README 2.md
+/app/components/english-checker 2.tsx
+/app/en/page 2.tsx
+
 # local build output and user-generated content
 /build-output/
 /tessdata-cache/

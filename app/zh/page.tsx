@@ -1,10 +1,11 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import CommunityBoard from "./components/community-board";
 import SelfCheck from "./components/self-check";
 import ThemeControls from "../components/theme-controls";
+import LanguageSwitch from "../components/language-switch";
+import { extractLocalOcrText } from "../lib/local-ocr";
 
 type Finding = { title: string; evidence: string[]; explanation: string };
 type ConversationContext = "relationship" | "family" | "workplace" | "other";
@@ -302,8 +303,8 @@ export default function Home() {
       for (let index = 0; index < files.length; index += 1) {
         setStatus(`正在识别第 ${index + 1} / ${files.length} 张截图…`);
         const prepared = await prepareImage(files[index]);
-        const result = await worker.recognize(prepared);
-        const cleaned = cleanOCRText(result.data.text);
+        const result = await worker.recognize(prepared, {}, { blocks: true });
+        const cleaned = extractLocalOcrText(result.data, "zh") || cleanOCRText(result.data.text);
         if (cleaned) chunks.push(cleaned);
       }
       await worker.terminate();
@@ -332,7 +333,7 @@ export default function Home() {
     <main className="zh-page">
       <header className="topbar">
         <a className="brand" href="#top"><span className="brand-mark">长</span><span>长成自己</span></a>
-        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#community">匿名互助</a><Link href="/">English</Link></nav>
+        <nav><a href="#learn">认识情感操控</a><a href="#self-check">关系自查</a><a href="#tool">拆解聊天</a><a href="#community">匿名互助</a><a href="#safety">现实安全支持</a><LanguageSwitch language="zh" /></nav>
         <ThemeControls language="zh" />
       </header>
 
@@ -416,7 +417,7 @@ export default function Home() {
         <div className="section-heading"><p className="eyebrow">你可能正在经历</p><h2>有些难受，很难向别人解释</h2></div>
         <div className="pain-grid">
           <a href="#self-check"><article><p>“是不是我真的太敏感？”</p><span>点进来做一次非诊断式关系与身心状态自查。</span></article></a>
-          <a href="#self-check"><article><p>“我解释了很久，怎么又成了我的错？”</p><span>辨认否认、羞辱、冷处理、话题转移与强制控制。</span></article></a>
+          <a href="#learn"><article><p>“我解释了很久，怎么又成了我的错？”</p><span>辨认否认、羞辱、冷处理、话题转移与强制控制。</span></article></a>
           <a href="#safety"><article><p>“我想离开，可钱、家人和威胁都卡着我。”</p><span>先看危险信号和中国地区现实求助，不把它只当沟通问题。</span></article></a>
         </div>
       </section>
@@ -424,16 +425,16 @@ export default function Home() {
       <SelfCheck />
 
       {analysis && <section className="result" id="result">
-        <div className="result-heading"><p className="eyebrow">对话拆解结果 · {analysis.contextLabel}</p><h2>先看安全，再看这段话</h2><p>以下提示不诊断任何人。它只告诉你：原文里出现了什么，以及你可以先保护什么。</p></div>
-        <article className={`risk-card ${analysis.risk.level}`}>
-          <div><span className="risk-dot" /><p className="card-label">风险分流</p><h3>{analysis.risk.label}</h3><p>{analysis.risk.summary}</p></div>
-          {analysis.risk.findings.length > 0 && <div className="risk-findings">{analysis.risk.findings.map((finding) => <div key={finding.title}><strong>{finding.title}</strong><p>命中原话：{finding.evidence.map((item) => `“${item}”`).join("、")}</p><span>{finding.guidance}</span></div>)}</div>}
-        </article>
+        <div className="result-heading"><p className="eyebrow">对话拆解结果 · {analysis.contextLabel}</p><h2>把原话、压力和风险分开看</h2><p>这是本地关键词与规则分析，不是心理诊断，也不是通用大模型判断。</p></div>
         <div className="result-grid">
-          <article className="result-card translation"><span className="card-label">过滤后的中译中</span><p>{analysis.translation}</p></article>
-          <article className="result-card"><span className="card-label">真正可核实的信息</span>{analysis.facts.length ? <ul>{analysis.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : <p>没有提取到明确的时间、金额、地点或行动安排。</p>}</article>
-          <article className="result-card wide"><span className="card-label">原话里出现的模式</span>{analysis.findings.length ? <div className="finding-list">{analysis.findings.map((finding) => <div className="finding" key={finding.title}><h3>{finding.title}</h3><p className="evidence">原文：{finding.evidence.map((word) => `“${word}”`).join("、")}</p><p>{finding.explanation}</p></div>)}</div> : <p>没有命中当前词库。这不等于关系健康，只代表这段文字不足以支持更强判断。</p>}</article>
-          <article className="result-card wide"><span className="card-label">如果你想回复</span><div className="reply-list">{analysis.replies.map((reply, index) => <button key={reply} onClick={() => navigator.clipboard?.writeText(reply)}><span>{index + 1}</span><p>{reply}</p><small>点此复制</small></button>)}</div></article>
+          <article className="result-card translation wide"><span className="card-label">我看见了什么</span><p>{analysis.translation}</p></article>
+          <article className="result-card wide"><span className="card-label">可以核实的原话与事实</span>{analysis.facts.length ? <ul>{analysis.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : <p>没有提取到明确的时间、金额、地点或行动安排。</p>}</article>
+          <article className="result-card wide"><span className="card-label">可能存在的压力或操控方式</span>{analysis.findings.length ? <div className="finding-list">{analysis.findings.map((finding) => <div className="finding" key={finding.title}><h3>{finding.title}</h3><p className="evidence">匹配到：{finding.evidence.map((word) => `“${word}”`).join("、")}</p><p>{finding.explanation}</p></div>)}</div> : <p>没有命中当前词库。这不等于关系健康，只代表现有文字不足以支持更强判断。</p>}</article>
+          <article className="result-card wide"><span className="card-label">这段对话可能怎样影响你</span><p>{analysis.findings.length ? "反复的否认、羞辱或控制，可能让你不断解释、自我怀疑，或把注意力放在避免对方反应上。长期受压后哭、吼、慌乱或麻木，不等于这些压力是你造成的。" : "仅凭这段文字无法确认影响程度。可以继续观察睡眠、害怕、自我怀疑，以及你是否越来越不敢表达和拒绝。"}</p></article>
+          <article className={`risk-card wide ${analysis.risk.level}`}><div><span className="risk-dot" /><p className="card-label">安全信号</p><h3>{analysis.risk.label}</h3><p>{analysis.risk.summary}</p></div>{analysis.risk.findings.length > 0 && <div className="risk-findings">{analysis.risk.findings.map((finding) => <div key={finding.title}><strong>{finding.title}</strong><p>匹配到：{finding.evidence.map((item) => `“${item}”`).join("、")}</p><span>{finding.guidance}</span></div>)}</div>}</article>
+          <article className="result-card wide"><span className="card-label">可直接复制的简短回复</span><div className="reply-list"><button onClick={() => navigator.clipboard?.writeText(analysis.replies[0])}><span>1</span><p>{analysis.replies[0]}</p><small>点此复制</small></button></div></article>
+          <article className="result-card wide"><span className="card-label">现在可以先做的一件具体小事</span><p>{analysis.risk.level === "urgent" || analysis.risk.level === "high" ? "把一条带日期的原始记录保存在对方接触不到的位置，并把具体原话告诉一位可信的人。" : context === "workplace" ? "把一次口头任务写成四项：交付物、截止时间、资源、验收标准，并发出书面确认。" : "先等20分钟再回复，把事实和评价分成两行，只回应能核实的事实。"}</p></article>
+          <article className="result-card wide"><span className="card-label">不确定之处</span><p>本页不能核实事件、判断动机，也不能诊断虐待、创伤、NPD或任何人格障碍。OCR还可能读错否定词、金额、时间和左右消息顺序；证据不足时，请把结果当作线索，不当作结论。</p></article>
         </div>
       </section>}
 

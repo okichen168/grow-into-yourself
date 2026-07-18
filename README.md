@@ -85,14 +85,6 @@ My reply or draft ───────┘                         │
 
 Keeping the speakers in separate fields avoids unreliable speaker guessing and removes slow mobile OCR from the critical path.
 
-## Current test-version decision
-
-Direct screenshot upload is paused.
-
-Mobile OCR created unnecessary waiting, browser memory pressure and speaker-attribution errors. For the current test version, users extract text using their phone, gallery or chat application and paste it into the two fields themselves.
-
-This is less flashy, but more reliable—and reliability matters more here than pretending an uncertain transcript is accurate.
-
 ## Technical overview
 
 | Layer         | Implementation                                           |

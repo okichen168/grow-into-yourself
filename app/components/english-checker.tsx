@@ -15,13 +15,12 @@ const copy = {
     id: "check",
     eyebrow: "Conversation clarity",
     title: "Paste the words. Let AI help you read the pressure.",
-    intro: "Screenshot upload is paused in this test version. Please use your phone, gallery, or chat app’s text extraction first, then paste the text here.",
     source: "Relationship",
     other: "Other person’s messages",
     otherPlaceholder: "Paste what the other person sent. One sentence or a whole conversation is fine.",
     mine: "My messages / draft reply (optional)",
     minePlaceholder: "Paste what you already replied, or what you are planning to send. Leave blank if unsure.",
-    privacy: "Text may be sent to the configured AI model to generate this analysis. This site does not save the conversation. Remove names and avoid identity numbers, bank details, passwords and exact addresses.",
+    privacy: "Your content is not saved or published by this site, and is not used to train this project’s models.",
     analyse: "Analyze with AI",
     analysing: "AI is reading this…",
     tooLong: "This is too long. Please shorten it before analysis.",
@@ -34,13 +33,12 @@ const copy = {
     id: "tool",
     eyebrow: "对话拆解",
     title: "把对方的话和你的回复分开看。",
-    intro: "测试版暂不支持直接上传截图。请先用微信、相册或手机自带文字识别提取聊天文字，再粘贴到这里。",
     source: "这段对话来自",
     other: "对方发来的话",
     otherPlaceholder: "粘贴对方发来的消息，可以是一句，也可以是一整段。",
     mine: "我说过的话 / 我准备回复的话（可选）",
     minePlaceholder: "粘贴你已经回复过的话，或你准备发出去的话。不确定可以留空。",
-    privacy: "为了生成本次分析，文本可能发送给配置的 AI 模型；本站不保存聊天内容。请删除姓名，并避免粘贴身份证、银行卡、密码、精确住址等敏感信息。",
+    privacy: "你的内容不会被本站保存、公开，也不会用于训练本项目模型。",
     analyse: "让 AI 帮我分析",
     analysing: "AI 正在分析…",
     tooLong: "文字太长了，请删短一点再分析。",
@@ -94,7 +92,7 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
   }
 
   return <section className="english-tool text-analyzer" id={ui.id}>
-    <div className="section-heading"><p className="eyebrow">{ui.eyebrow}</p><h2>{ui.title}</h2><p>{ui.intro}</p></div>
+    <div className="section-heading"><p className="eyebrow">{ui.eyebrow}</p><h2>{ui.title}</h2></div>
     <p className="privacy-inline">{ui.privacy}</p>
     <span className="context-title">{ui.source}</span>
     <div className="english-context" aria-label={ui.source}>{contextOptions.map((item) => <button type="button" data-context={item.tone} className={context === item.value ? "active" : ""} onClick={() => setContext(item.value)} key={item.value}>{context === item.value && <span aria-hidden="true">✓ </span>}{item[language]}</button>)}</div>

@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family:"Grow Rounded";
+  font-style:normal;
+  font-display:swap;
+  font-weight:400;
+  src:url("/fonts/rounded-subset.woff2") format("woff2");
+}
+
+@font-face {
+  font-family:"Grow Handwritten";
+  font-style:normal;
+  font-display:swap;
+  font-weight:400;
+  src:url("/fonts/handwritten-subset.woff2") format("woff2");
+}
+
 :root {
   --cream: #fff8f2;
   --paper: #fffdf9;
@@ -26,14 +42,10 @@ html[data-font="system"] { --app-font:Inter,ui-sans-serif,system-ui,-apple-syste
 html[data-font="serif"] { --app-font:Georgia,"Times New Roman",serif; }
 html[data-font="humanist"] { --app-font:"Trebuchet MS",Arial,sans-serif; }
 html[data-font="mono"] { --app-font:"Aptos Mono","SFMono-Regular",Consolas,monospace; }
-html[data-font="soft"] { --app-font:"Yuanti SC","YouYuan",sans-serif; }
-html[data-font="clear"] { --app-font:"PingFang SC","Microsoft YaHei",sans-serif; }
-html[data-font="kai"] { --app-font:"Kaiti SC","STKaiti","KaiTi",serif; }
-html[data-font="reading"] { --app-font:"Songti SC","STSong","SimSun",serif; }
-body[data-font="soft"] { font-family:"Yuanti SC","YouYuan","PingFang SC",sans-serif; }
-body[data-font="clear"] { font-family:"PingFang SC","Heiti SC","Microsoft YaHei",sans-serif; }
-body[data-font="kai"] { font-family:"Kaiti SC","STKaiti","KaiTi",cursive; }
-body[data-font="reading"] { font-family:"Songti SC","STSong","SimSun",serif; }
+html[data-font="rounded"] { --app-font:"Grow Rounded",system-ui,sans-serif; }
+html[data-font="clear"] { --app-font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+html[data-font="handwritten"] { --app-font:"Grow Handwritten",cursive; }
+html[data-font="reading"] { --app-font:Georgia,"Times New Roman","Songti SC","STSong","SimSun",serif; }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -50,6 +62,7 @@ body::after { content:""; position:fixed; inset:-12%; z-index:-1; background-col
 @keyframes scene-breeze { 0% { transform:scale(1.035) translate3d(-1.4%,.2%,0); } 50% { transform:scale(1.065) translate3d(.7%,-.7%,0); } 100% { transform:scale(1.045) translate3d(1.7%,.4%,0); } }
 @keyframes ambient-drift { 0% { transform:translate3d(-2%,1%,0) rotate(-.25deg); background-position:0% 25%; } 100% { transform:translate3d(2%,-1%,0) rotate(.25deg); background-position:100% 70%; } }
 button, textarea, input, select { font: inherit; }
+body, main, .zh-page, button, input, textarea, select { font-family:var(--app-font); }
 a { color: inherit; }
 button { color: inherit; }
 
@@ -98,10 +111,17 @@ nav a:hover { color: var(--rose-dark); }
 .font-options [data-font-preview="serif"] { font-family:Georgia,serif; }
 .font-options [data-font-preview="humanist"] { font-family:"Trebuchet MS",sans-serif; }
 .font-options [data-font-preview="mono"] { font-family:"Aptos Mono",Consolas,monospace; font-size:12px; }
-.font-options [data-font-preview="soft"] { font-family:"Yuanti SC","YouYuan","幼圆",sans-serif; }
-.font-options [data-font-preview="clear"] { font-family:"PingFang SC","Microsoft YaHei",sans-serif; font-weight:650; }
-.font-options [data-font-preview="kai"] { font-family:"Kaiti SC","STKaiti","KaiTi",serif; font-size:17px; }
-.font-options [data-font-preview="reading"] { font-family:"Songti SC","STSong","宋体",serif; }
+.font-options [data-font-preview="rounded"] { font-family:"Grow Rounded",system-ui,sans-serif; font-weight:400; }
+.font-options [data-font-preview="clear"] { font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; font-weight:700; }
+.font-options [data-font-preview="handwritten"] { font-family:"Grow Handwritten",cursive; font-size:17px; font-weight:400; }
+.font-options [data-font-preview="reading"] { font-family:Georgia,"Times New Roman","Songti SC","STSong","SimSun",serif; font-weight:700; }
+
+html[data-font="rounded"] .zh-page,
+html[data-font="handwritten"] .zh-page { font-weight:400; }
+html[data-font="rounded"] .zh-page :is(h1,h2,h3,h4,strong,b,button),
+html[data-font="handwritten"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weight:400; }
+html[data-font="clear"] .zh-page :is(h1,h2,h3,h4,strong,b,button),
+html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weight:700; }
 
 .hero {
   min-height: 720px;

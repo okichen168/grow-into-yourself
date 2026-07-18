@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family:"LXGW WenKai";
+  font-style:normal;
+  font-display:swap;
+  font-weight:400;
+  src:url("/fonts/LXGWWenKai-Regular.ttf") format("truetype");
+}
+
 :root {
   --cream: #fff8f2;
   --paper: #fffdf9;

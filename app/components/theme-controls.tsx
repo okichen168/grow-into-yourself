@@ -30,10 +30,10 @@ const fontStacks: Record<string, string> = {
   serif: 'Georgia, "Times New Roman", serif',
   humanist: '"Trebuchet MS", Arial, sans-serif',
   mono: '"Aptos Mono", "SFMono-Regular", Consolas, monospace',
-  rounded: '"ZCOOL KuaiLe", sans-serif',
-  clear: '"Noto Sans SC", sans-serif',
-  handwritten: '"LXGW WenKai", cursive',
-  reading: '"Noto Serif SC", serif',
+  rounded: '"Grow Rounded", system-ui, sans-serif',
+  clear: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+  handwritten: '"Grow Handwritten", cursive',
+  reading: 'Georgia, "Times New Roman", "Songti SC", "STSong", "SimSun", serif',
 };
 
 const legacyChineseFontIds: Record<string, string> = { soft: "rounded", kai: "handwritten" };

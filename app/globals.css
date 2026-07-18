@@ -81,14 +81,14 @@ nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
 nav a:hover { color: var(--rose-dark); }
 .theme-control { position: relative; z-index:1002; margin-left: auto; }
 .theme-trigger { padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); cursor: pointer; white-space: nowrap; }
-.theme-scrim { position:fixed; inset:0; z-index:1000; border:0; background:rgba(37,25,38,.20); backdrop-filter:blur(2px); }
-.theme-panel { width:min(430px,calc(100vw - 28px)); max-height:calc(100dvh - 96px); padding:18px; position:fixed; right:clamp(14px,5vw,72px); top:80px; z-index:1002; overflow:auto; border:1px solid var(--line); border-radius:22px; background:var(--paper); box-shadow:0 24px 80px rgba(55,35,50,.28); isolation:isolate; opacity:1; }
+.theme-scrim { position:fixed; inset:0; z-index:1000; padding:0; border:0; background:rgba(37,25,38,.20); backdrop-filter:blur(2px); pointer-events:auto; }
+.theme-panel { width:min(430px,calc(100vw - 28px)); max-height:calc(100dvh - 96px); padding:18px; position:fixed; right:clamp(14px,5vw,72px); top:80px; z-index:1002; overflow:auto; border:1px solid var(--line); border-radius:22px; background:var(--paper); box-shadow:0 24px 80px rgba(55,35,50,.28); isolation:isolate; opacity:1; pointer-events:auto; touch-action:pan-y; }
 .theme-panel-head { display:flex; justify-content:space-between; gap:16px; }
 .theme-panel-head button { border:0; background:transparent; font-size:24px; cursor:pointer; }
 .theme-panel p { color:var(--muted); font-size:12px; line-height:1.6; }
 .choice-label { display:block; margin:14px 0 8px; color:var(--muted); font-size:12px; font-weight:800; }
 .theme-options { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
-.theme-options button, .font-options button { padding:8px 5px; border:1px solid var(--line); border-radius:12px; background:transparent; cursor:pointer; }
+.theme-options button, .font-options button { position:relative; z-index:1; padding:8px 5px; border:1px solid var(--line); border-radius:12px; background:transparent; cursor:pointer; pointer-events:auto; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .theme-options button.selected, .font-options button.selected { border-color:var(--rose-dark); box-shadow:0 0 0 2px color-mix(in srgb, var(--rose) 20%, transparent); }
 .theme-options button { min-height:54px; display:grid; place-items:center; }
 .theme-options i { display:flex; justify-content:center; }

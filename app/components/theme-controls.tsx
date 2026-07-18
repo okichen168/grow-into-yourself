@@ -63,19 +63,27 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
 
   function chooseFont(next: string) {
     setFont(next);
+    if (typeof document !== "undefined") {
+      const stack = fontStacks[next] || fontStacks[defaultFont];
+      document.documentElement.setAttribute("data-font", next);
+      document.documentElement.style.setProperty("--app-font", stack);
+      document.body.setAttribute("data-font", next);
+      document.body.style.setProperty("font-family", stack);
+      localStorage.setItem(`grow-font-${language}`, next);
+    }
     setOpen(false);
   }
 
   return (
     <div className="theme-control">
-      <button className="theme-trigger" onClick={() => setOpen((value) => !value)} aria-expanded={open}>◐ <span>{language === "zh" ? "换个感觉" : "Appearance"}</span></button>
-      {open && typeof document !== "undefined" && createPortal(<><button className="theme-scrim" onClick={() => setOpen(false)} aria-label={language === "zh" ? "关闭主题选择" : "Close appearance picker"} /><div className="theme-panel" role="dialog" aria-modal="true" aria-label={language === "zh" ? "主题与字体设置" : "Appearance settings"}>
-        <div className="theme-panel-head"><strong>{language === "zh" ? "选一个让你舒服的界面" : "Make this space yours"}</strong><button onClick={() => setOpen(false)} aria-label={language === "zh" ? "关闭" : "Close"}>×</button></div>
+      <button type="button" className="theme-trigger" onClick={() => setOpen((value) => !value)} aria-expanded={open}>◐ <span>{language === "zh" ? "换个感觉" : "Appearance"}</span></button>
+      {open && typeof document !== "undefined" && createPortal(<><button type="button" className="theme-scrim" onClick={() => setOpen(false)} aria-label={language === "zh" ? "关闭主题选择" : "Close appearance picker"} /><div className="theme-panel" role="dialog" aria-modal="true" aria-label={language === "zh" ? "主题与字体设置" : "Appearance settings"} onClick={(event) => event.stopPropagation()}>
+        <div className="theme-panel-head"><strong>{language === "zh" ? "选一个让你舒服的界面" : "Make this space yours"}</strong><button type="button" onClick={() => setOpen(false)} aria-label={language === "zh" ? "关闭" : "Close"}>×</button></div>
         <p>{language === "zh" ? "颜色和字体只保存在当前设备，不会和聊天内容关联。" : "Theme and type preferences stay on this device. They are not linked to your chats."}</p>
         <span className="choice-label">{language === "zh" ? "颜色" : "Colour"}</span>
-        <div className="theme-options">{themes.map((item, index) => <button aria-label={language === "zh" ? `切换到${item.zh}主题` : `Switch to colour theme ${index + 1}`} className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i></button>)}</div>
+        <div className="theme-options">{themes.map((item, index) => <button type="button" aria-label={language === "zh" ? `切换到${item.zh}主题` : `Switch to colour theme ${index + 1}`} className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i></button>)}</div>
         <span className="choice-label">{language === "zh" ? "字体" : "Type"}</span>
-        <div className="font-options">{fonts.map((item) => <button data-font-preview={item.id} className={resolvedFont === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{item.name}</button>)}</div>
+        <div className="font-options">{fonts.map((item) => <button type="button" data-font-preview={item.id} className={resolvedFont === item.id ? "selected" : ""} onClick={() => chooseFont(item.id)} key={item.id}>{item.name}</button>)}</div>
       </div></>, document.body)}
     </div>
   );

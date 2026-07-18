@@ -30,11 +30,32 @@ const fontStacks: Record<string, string> = {
   serif: 'Georgia, "Times New Roman", serif',
   humanist: '"Trebuchet MS", Arial, sans-serif',
   mono: '"Aptos Mono", "SFMono-Regular", Consolas, monospace',
-  soft: '"Yuanti SC", "YouYuan", "PingFang SC", sans-serif',
-  clear: '"PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif',
-  kai: '"Kaiti SC", "STKaiti", "KaiTi", cursive',
-  reading: '"Songti SC", "STSong", "SimSun", serif',
+  soft: 'ui-rounded, "PingFang SC", "Hiragino Sans GB", sans-serif',
+  clear: '"PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
+  kai: '"Kaiti SC", "STKaiti", "KaiTi", "KaiTi_GB2312", cursive',
+  reading: '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif',
 };
+
+const fontCandidates: Record<string, string[]> = {
+  soft: ['"PingFang SC"', '"Hiragino Sans GB"'],
+  clear: ['"PingFang SC"', '"Helvetica Neue"', '"Microsoft YaHei"'],
+  kai: ['"Kaiti SC"', '"STKaiti"', '"KaiTi"', '"KaiTi_GB2312"'],
+  reading: ['"Songti SC"', '"STSong"', '"SimSun"', '"Noto Serif CJK SC"'],
+};
+
+const genericFallbacks: Record<string, string> = {
+  soft: "ui-rounded",
+  clear: "sans-serif",
+  kai: "cursive",
+  reading: "serif",
+};
+
+function detectAvailableFont(fontId: string) {
+  if (typeof document === "undefined" || !document.fonts?.check) return genericFallbacks[fontId] || "system";
+  return fontCandidates[fontId]?.find((candidate) => document.fonts.check(`16px ${candidate}`, "长成自己"))
+    || genericFallbacks[fontId]
+    || "system";
+}
 
 export default function ThemeControls({ language = "en" }: { language?: "zh" | "en" }) {
   const [open, setOpen] = useState(false);
@@ -51,6 +72,8 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
 
   useEffect(() => {
     document.documentElement.dataset.font = resolvedFont;
+    document.documentElement.dataset.fontResolved = detectAvailableFont(resolvedFont).replaceAll('"', "");
+    document.documentElement.style.setProperty("--app-font", fontStacks[resolvedFont] || fontStacks[defaultFont]);
     document.body.dataset.font = resolvedFont;
     document.body.style.fontFamily = fontStacks[resolvedFont] || fontStacks[defaultFont];
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
@@ -66,12 +89,12 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
     if (typeof document !== "undefined") {
       const stack = fontStacks[next] || fontStacks[defaultFont];
       document.documentElement.setAttribute("data-font", next);
+      document.documentElement.setAttribute("data-font-resolved", detectAvailableFont(next).replaceAll('"', ""));
       document.documentElement.style.setProperty("--app-font", stack);
       document.body.setAttribute("data-font", next);
       document.body.style.setProperty("font-family", stack);
       localStorage.setItem(`grow-font-${language}`, next);
     }
-    setOpen(false);
   }
 
   return (

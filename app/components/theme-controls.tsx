@@ -19,10 +19,10 @@ const englishFonts = [
 ];
 
 const chineseFonts = [
-  { id: "soft", name: "圆体" },
-  { id: "clear", name: "黑体" },
-  { id: "kai", name: "楷体" },
-  { id: "reading", name: "宋体" },
+  { id: "rounded", name: "圆润" },
+  { id: "clear", name: "清晰" },
+  { id: "handwritten", name: "手写" },
+  { id: "reading", name: "阅读" },
 ];
 
 const fontStacks: Record<string, string> = {
@@ -30,39 +30,24 @@ const fontStacks: Record<string, string> = {
   serif: 'Georgia, "Times New Roman", serif',
   humanist: '"Trebuchet MS", Arial, sans-serif',
   mono: '"Aptos Mono", "SFMono-Regular", Consolas, monospace',
-  soft: 'ui-rounded, "PingFang SC", "Hiragino Sans GB", sans-serif',
-  clear: '"PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
-  kai: '"Kaiti SC", "STKaiti", "KaiTi", "KaiTi_GB2312", cursive',
-  reading: '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif',
+  rounded: '"ZCOOL KuaiLe", sans-serif',
+  clear: '"Noto Sans SC", sans-serif',
+  handwritten: '"LXGW WenKai", cursive',
+  reading: '"Noto Serif SC", serif',
 };
 
-const fontCandidates: Record<string, string[]> = {
-  soft: ['"PingFang SC"', '"Hiragino Sans GB"'],
-  clear: ['"PingFang SC"', '"Helvetica Neue"', '"Microsoft YaHei"'],
-  kai: ['"Kaiti SC"', '"STKaiti"', '"KaiTi"', '"KaiTi_GB2312"'],
-  reading: ['"Songti SC"', '"STSong"', '"SimSun"', '"Noto Serif CJK SC"'],
-};
-
-const genericFallbacks: Record<string, string> = {
-  soft: "ui-rounded",
-  clear: "sans-serif",
-  kai: "cursive",
-  reading: "serif",
-};
-
-function detectAvailableFont(fontId: string) {
-  if (typeof document === "undefined" || !document.fonts?.check) return genericFallbacks[fontId] || "system";
-  return fontCandidates[fontId]?.find((candidate) => document.fonts.check(`16px ${candidate}`, "长成自己"))
-    || genericFallbacks[fontId]
-    || "system";
-}
+const legacyChineseFontIds: Record<string, string> = { soft: "rounded", kai: "handwritten" };
 
 export default function ThemeControls({ language = "en" }: { language?: "zh" | "en" }) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState(() => typeof window === "undefined" ? "embrace" : localStorage.getItem("grow-theme") || "embrace");
   const fonts = language === "zh" ? chineseFonts : englishFonts;
-  const defaultFont = language === "zh" ? "soft" : "system";
-  const [font, setFont] = useState(() => typeof window === "undefined" ? defaultFont : localStorage.getItem(`grow-font-${language}`) || defaultFont);
+  const defaultFont = language === "zh" ? "rounded" : "system";
+  const [font, setFont] = useState(() => {
+    if (typeof window === "undefined") return defaultFont;
+    const stored = localStorage.getItem(`grow-font-${language}`) || defaultFont;
+    return language === "zh" ? legacyChineseFontIds[stored] || stored : stored;
+  });
   const resolvedFont = fonts.some((item) => item.id === font) ? font : defaultFont;
 
   useEffect(() => {
@@ -72,7 +57,6 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
 
   useEffect(() => {
     document.documentElement.dataset.font = resolvedFont;
-    document.documentElement.dataset.fontResolved = detectAvailableFont(resolvedFont).replaceAll('"', "");
     document.documentElement.style.setProperty("--app-font", fontStacks[resolvedFont] || fontStacks[defaultFont]);
     document.body.dataset.font = resolvedFont;
     document.body.style.fontFamily = fontStacks[resolvedFont] || fontStacks[defaultFont];
@@ -89,7 +73,6 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
     if (typeof document !== "undefined") {
       const stack = fontStacks[next] || fontStacks[defaultFont];
       document.documentElement.setAttribute("data-font", next);
-      document.documentElement.setAttribute("data-font-resolved", detectAvailableFont(next).replaceAll('"', ""));
       document.documentElement.style.setProperty("--app-font", stack);
       document.body.setAttribute("data-font", next);
       document.body.style.setProperty("font-family", stack);
@@ -102,7 +85,6 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
       <button type="button" className="theme-trigger" onClick={() => setOpen((value) => !value)} aria-expanded={open}>◐ <span>{language === "zh" ? "换个感觉" : "Appearance"}</span></button>
       {open && typeof document !== "undefined" && createPortal(<><button type="button" className="theme-scrim" onClick={() => setOpen(false)} aria-label={language === "zh" ? "关闭主题选择" : "Close appearance picker"} /><div className="theme-panel" role="dialog" aria-modal="true" aria-label={language === "zh" ? "主题与字体设置" : "Appearance settings"} onClick={(event) => event.stopPropagation()}>
         <div className="theme-panel-head"><strong>{language === "zh" ? "选一个让你舒服的界面" : "Make this space yours"}</strong><button type="button" onClick={() => setOpen(false)} aria-label={language === "zh" ? "关闭" : "Close"}>×</button></div>
-        <p>{language === "zh" ? "颜色和字体只保存在当前设备，不会和聊天内容关联。" : "Theme and type preferences stay on this device. They are not linked to your chats."}</p>
         <span className="choice-label">{language === "zh" ? "颜色" : "Colour"}</span>
         <div className="theme-options">{themes.map((item, index) => <button type="button" aria-label={language === "zh" ? `切换到${item.zh}主题` : `Switch to colour theme ${index + 1}`} className={theme === item.id ? "selected" : ""} onClick={() => chooseTheme(item.id)} key={item.id}><i>{item.colors.map((color) => <b style={{ background: color }} key={color} />)}</i></button>)}</div>
         <span className="choice-label">{language === "zh" ? "字体" : "Type"}</span>

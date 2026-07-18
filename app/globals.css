@@ -26,14 +26,10 @@ html[data-font="system"] { --app-font:Inter,ui-sans-serif,system-ui,-apple-syste
 html[data-font="serif"] { --app-font:Georgia,"Times New Roman",serif; }
 html[data-font="humanist"] { --app-font:"Trebuchet MS",Arial,sans-serif; }
 html[data-font="mono"] { --app-font:"Aptos Mono","SFMono-Regular",Consolas,monospace; }
-html[data-font="soft"] { --app-font:ui-rounded,"PingFang SC","Hiragino Sans GB",sans-serif; }
-html[data-font="clear"] { --app-font:"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif; }
-html[data-font="kai"] { --app-font:"Kaiti SC","STKaiti","KaiTi","KaiTi_GB2312",cursive; }
-html[data-font="reading"] { --app-font:"Songti SC","STSong","SimSun","Noto Serif CJK SC",serif; }
-body[data-font="soft"] { font-family:ui-rounded,"PingFang SC","Hiragino Sans GB",sans-serif; }
-body[data-font="clear"] { font-family:"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif; }
-body[data-font="kai"] { font-family:"Kaiti SC","STKaiti","KaiTi","KaiTi_GB2312",cursive; }
-body[data-font="reading"] { font-family:"Songti SC","STSong","SimSun","Noto Serif CJK SC",serif; }
+html[data-font="rounded"] { --app-font:"ZCOOL KuaiLe",sans-serif; }
+html[data-font="clear"] { --app-font:"Noto Sans SC",sans-serif; }
+html[data-font="handwritten"] { --app-font:"LXGW WenKai",cursive; }
+html[data-font="reading"] { --app-font:"Noto Serif SC",serif; }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -99,15 +95,17 @@ nav a:hover { color: var(--rose-dark); }
 .font-options [data-font-preview="serif"] { font-family:Georgia,serif; }
 .font-options [data-font-preview="humanist"] { font-family:"Trebuchet MS",sans-serif; }
 .font-options [data-font-preview="mono"] { font-family:"Aptos Mono",Consolas,monospace; font-size:12px; }
-.font-options [data-font-preview="soft"] { font-family:ui-rounded,"PingFang SC","Hiragino Sans GB",sans-serif; }
-.font-options [data-font-preview="clear"] { font-family:"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif; font-weight:650; }
-.font-options [data-font-preview="kai"] { font-family:"Kaiti SC","STKaiti","KaiTi","KaiTi_GB2312",cursive; font-size:17px; }
-.font-options [data-font-preview="reading"] { font-family:"Songti SC","STSong","SimSun","Noto Serif CJK SC",serif; }
+.font-options [data-font-preview="rounded"] { font-family:"ZCOOL KuaiLe",sans-serif; font-weight:400; }
+.font-options [data-font-preview="clear"] { font-family:"Noto Sans SC",sans-serif; font-weight:700; }
+.font-options [data-font-preview="handwritten"] { font-family:"LXGW WenKai",cursive; font-size:17px; font-weight:400; }
+.font-options [data-font-preview="reading"] { font-family:"Noto Serif SC",serif; font-weight:700; }
 
-html[data-font="kai"] .zh-page,
-html[data-font="reading"] .zh-page { font-weight:400; }
-html[data-font="kai"] .zh-page :is(h1,h2,h3,h4,strong,b,button),
-html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weight:600; }
+html[data-font="rounded"] .zh-page,
+html[data-font="handwritten"] .zh-page { font-weight:400; }
+html[data-font="rounded"] .zh-page :is(h1,h2,h3,h4,strong,b,button),
+html[data-font="handwritten"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weight:400; }
+html[data-font="clear"] .zh-page :is(h1,h2,h3,h4,strong,b,button),
+html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weight:700; }
 
 .hero {
   min-height: 720px;

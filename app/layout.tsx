@@ -1,4 +1,10 @@
 import type { Metadata } from "next";
+import "@fontsource/zcool-kuaile/chinese-simplified-400.css";
+import "@fontsource/noto-sans-sc/chinese-simplified-400.css";
+import "@fontsource/noto-sans-sc/chinese-simplified-700.css";
+import "lxgw-wenkai-webfont/lxgwwenkai-regular.css";
+import "@fontsource/noto-serif-sc/chinese-simplified-400.css";
+import "@fontsource/noto-serif-sc/chinese-simplified-700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -1,247 +1,17 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
 import CommunityBoard from "./components/community-board";
 import SelfCheck from "./components/self-check";
 import ThemeControls from "../components/theme-controls";
 import LanguageSwitch from "../components/language-switch";
-import { extractLocalOcrText } from "../lib/local-ocr";
+import EnglishChecker from "../components/english-checker";
 
-type Finding = { title: string; evidence: string[]; explanation: string };
-type ConversationContext = "relationship" | "family" | "workplace" | "other";
-type RiskLevel = "urgent" | "high" | "watch" | "none";
-type RiskFinding = { title: string; evidence: string[]; guidance: string };
-type RiskAssessment = { level: RiskLevel; label: string; summary: string; findings: RiskFinding[] };
-type Analysis = { findings: Finding[]; facts: string[]; translation: string; replies: string[]; risk: RiskAssessment; contextLabel: string };
-
-const languagePatterns = [
-  {
-    title: "否认你的感受或记忆",
-    words: ["你想多了", "太敏感", "我没说过", "你记错了", "从来没有", "开不起玩笑", "小题大做"],
-    explanation: "争议被悄悄从“发生了什么”变成“是不是你有问题”。你的感受不等于事实证据，但也不该被一句话抹掉。",
-  },
-  {
-    title: "羞辱与人格贬低",
-    words: ["没用", "废物", "丢人", "没人要", "公主病", "白眼狼", "不懂事", "恶心", "有病"],
-    explanation: "这些是对人的攻击，不是对具体问题的说明。它们会制造羞耻，却没有提供真正需要解决的信息。",
-  },
-  {
-    title: "用爱、孝顺或付出施压",
-    words: ["都是为了你", "为你好", "白养你", "如果你爱我", "养你这么大", "没良心", "不孝"],
-    explanation: "关系和付出可以讨论，但不能被用来取消你的边界，或要求你为对方的所有情绪负责。",
-  },
-  {
-    title: "命令、威胁或压缩选择",
-    words: ["不许", "必须", "马上回来", "发位置", "断绝关系", "后果自负", "别想", "你敢"],
-    explanation: "这类表达不是在协商，而是在迫使你服从。先判断现实安全，再决定是否回复。",
-  },
-  {
-    title: "把自己的行为全部归咎于你",
-    words: ["都是因为你", "还不是因为你", "你逼我的", "谁让你", "你先惹我", "要不是你"],
-    explanation: "冲突可能有双方因素，但每个人仍需为自己的辱骂、威胁和行为负责。",
-  },
-  {
-    title: "孤立与切断支持",
-    words: ["别跟他们来往", "不准见朋友", "你朋友都", "离他们远点", "只能相信我", "家丑不可外扬"],
-    explanation: "让你远离朋友、家人或外部帮助，会增加依赖，也会让你更难核对现实。",
-  },
-  {
-    title: "DARVO式责任反转",
-    words: ["你才是施暴者", "你才是坏人", "我才是受害者", "你在污蔑我", "你毁了我", "你怎么不说你自己", "反咬一口"],
-    explanation: "当你指出一个具体伤害时，对方先否认，再攻击你的可信度，最后把自己放到受害者位置。研究称这种组合为DARVO；命中一句不等于完整模式，要看三个步骤是否反复出现。",
-  },
-  {
-    title: "只展示你崩溃的最后一幕",
-    words: ["她先吼的", "他先吼的", "你看她又疯了", "你情绪不稳定", "大家都看到了", "谁会相信你", "我一直很冷静", "只截这段"],
-    explanation: "语气平静不是无害证明，情绪激动也不能单独判定谁先造成伤害。需要把镜头往前拉，看完整时间线、重复施压、权力差距、你说“不”后的反应，以及谁长期承担后果。",
-  },
-  {
-    title: "群体排斥、泄密或围攻",
-    words: ["大家都讨厌你", "都别理她", "都别理他", "踢出群", "把聊天发群里", "你的秘密", "选我还是选她", "我们都不带你"],
-    explanation: "把隐私发给别人、动员共同朋友排斥你，或用群体压力逼你选边，不只是普通意见不同。先保存完整记录，并找一个不在这场冲突里的可信任者核对情况。",
-  },
-  {
-    title: "忽冷忽热与奖惩式亲密",
-    words: ["再给你一次机会", "看你表现", "乖一点就", "听话就", "不听话就分手", "只有我会爱你", "没人会像我一样", "离不开我"],
-    explanation: "亲密、承诺或联系被当作奖励和惩罚，会让人把注意力放在取悦对方，而不是判断关系是否互相尊重。单次情绪变化不能证明操控，重点看是否形成稳定奖惩循环。",
-  },
-  {
-    title: "惩罚性沉默或撤回联系",
-    words: ["别再找我", "什么时候想明白再说", "晾着你", "不回你", "不想跟你说话", "你自己反省", "冷静到你认错"],
-    explanation: "说明需要暂停、约定恢复时间，是健康冷静；故意失联、拒绝说明并一直等你妥协，更接近惩罚性沉默和社会排斥。",
-  },
-  {
-    title: "性边界施压",
-    words: ["不愿意就是不爱我", "都在一起了", "情侣就应该", "你欠我的", "装什么", "不做就分手", "证明你爱我"],
-    explanation: "亲密关系不等于永久同意。用爱、关系身份、羞耻或分手威胁换取性行为，是对同意边界的施压。",
-  },
-  {
-    title: "特权感、利用与缺乏互惠",
-    words: ["我凭什么道歉", "你就应该", "必须以我为主", "我永远不会错", "你配吗", "你只要听我的", "为我做是应该的"],
-    explanation: "这些话可能表现出特权期待、利用或缺乏互惠，是可观察的互动问题；它们不是NPD诊断，正式诊断必须由专业人员直接评估当事人。",
-  },
-  {
-    title: "职场公开贬低与人格攻击",
-    words: ["这点事都做不好", "你脑子有问题", "当着大家", "全公司都知道", "能力不行", "不适合工作", "废物员工"],
-    explanation: "绩效反馈应针对任务、标准和改进方法。反复公开羞辱、嘲笑或攻击人格，更接近针对个人的职场霸凌行为。",
-  },
-  {
-    title: "职场信息封锁与排斥",
-    words: ["没必要告诉你", "会议不用参加", "不用抄送她", "群里别说话", "不带你", "别跟她合作", "不要告诉他", "故意不通知"],
-    explanation: "反复扣住完成工作必需的信息、排除会议或孤立同事，属于工作相关霸凌与职场排斥的常见维度。",
-  },
-  {
-    title: "不合理任务、抢功或故意设败",
-    words: ["今晚必须做完", "不可能也要完成", "做不完就滚", "功劳是我的", "不要署你的名", "给你最低绩效", "故意不给资源", "怎么做都不对"],
-    explanation: "紧急任务本身不等于霸凌；如果不合理期限、资源剥夺、抢夺成果或不断改变标准反复发生，可能是在利用权力让人失败。",
-  },
-  {
-    title: "职场威吓与报复",
-    words: ["不想干就滚", "让你过不了试用期", "影响你转正", "行业里混不下去", "敢举报试试", "给你穿小鞋", "别想升职", "开除你"],
-    explanation: "用职位、排班、绩效、转正或行业声誉压制申诉，是需要保存记录并寻求组织、工会或法律支持的权力威吓。",
-  },
+const learningCards = [
+  ["否认与改写", "反复否认说过的话，让你开始怀疑自己的记忆和判断。", "🪞", "/zh/learn#gaslighting"],
+  ["羞辱与贬低", "不讨论事情，转而攻击你的能力、人格、外貌或价值。", "🥀", "/zh/learn#humiliation"],
+  ["孤立与控制", "切断朋友、工作、钱和出行，让你越来越难独立选择。", "🕊️", "/zh/learn#control"],
+  ["为什么外人容易看反", "对方可能很冷静，而被长期逼迫的人只在最后一幕崩溃。", "⛈️", "/zh/learn#darvo"],
 ];
-
-const riskPatterns: Array<RiskFinding & { level: RiskLevel; words: string[] }> = [
-  {
-    level: "urgent",
-    title: "可能涉及人身伤害威胁",
-    words: ["杀了你", "弄死你", "打死你", "砍死", "捅死", "让你消失", "一起死", "伤害你", "伤害他"],
-    evidence: [],
-    guidance: "不要继续刺激或独自见面。尽量去有他人的安全地点，保存证据；正在发生或即将发生危险时拨打110，受伤或需要急救时拨打120。",
-  },
-  {
-    level: "urgent",
-    title: "可能涉及自伤或自杀威胁",
-    words: ["死给你看", "不想活了", "我要自杀", "去跳楼", "割腕", "我死了都是你", "活不下去"],
-    evidence: [],
-    guidance: "不要独自承担“救下对方”的责任。明确告诉110、120或对方所在地可信成年人；心理危机支持可拨12356。",
-  },
-  {
-    level: "high",
-    title: "可能涉及跟踪、定位或监控",
-    words: ["发位置", "实时位置", "我在你门口", "跟着你", "定位你", "查你手机", "看你聊天记录", "监控你"],
-    evidence: [],
-    guidance: "检查微信实时位置、设备登录、共享账号与定位权限；不要在不安全时直接对质。必要时联系110或12348咨询证据保存。",
-  },
-  {
-    level: "high",
-    title: "可能限制行动或强制回家",
-    words: ["必须回家", "马上回来", "不许出门", "锁门", "关起来", "扣你身份证", "扣你护照", "不让你走"],
-    evidence: [],
-    guidance: "优先保管身份证件、手机、药物和紧急现金，告诉可信的人你的情况；被限制人身自由时联系110。",
-  },
-  {
-    level: "high",
-    title: "可能涉及经济控制",
-    words: ["没收工资", "冻结你的卡", "断你生活费", "一分钱不给", "把钱交出来", "不准工作", "赶你出去"],
-    evidence: [],
-    guidance: "在安全前提下备份账户、工资、房产和转账证据，准备独立支付方式；可拨12348咨询法律援助。",
-  },
-  {
-    level: "urgent",
-    title: "对未成年人的风险需要优先处理",
-    words: ["打孩子", "杀了孩子", "带走孩子", "不让孩子上学", "未成年", "小孩一起死"],
-    evidence: [],
-    guidance: "正在发生的伤害立即拨110/120；青少年心理与法律支持可联系12355，妇女儿童权益问题可联系12338。",
-  },
-];
-
-const levelRank: Record<RiskLevel, number> = { none: 0, watch: 1, high: 2, urgent: 3 };
-const factSignals = /\d|点|号|今天|明天|昨天|周|月|元|块|地址|位置|几点|工资|房租|见面|回家|电话|医院|报警|转账|学校/;
-
-function cleanOCRText(raw: string) {
-  const cjk = "\\u3400-\\u9fff";
-  const compactLine = (line: string) => line
-    .replace(new RegExp(`([${cjk}])\\s+(?=[${cjk}])`, "g"), "$1")
-    .replace(/\s+([，。！？；：、）】》])/g, "$1")
-    .replace(/([（【《])\s+/g, "$1")
-    .replace(/([，。！？；：、])(?=[^\s\n])/g, "$1")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-  const paragraphs = raw
-    .replace(/\r/g, "")
-    .split(/\n\s*\n+/)
-    .map((paragraph) => paragraph.split("\n").map(compactLine).filter(Boolean))
-    .filter((lines) => lines.length);
-
-  const rebuilt = paragraphs.map((lines) => {
-    let text = "";
-    for (const line of lines) {
-      if (!text) { text = line; continue; }
-      const startsLikeMeta = /^(我|对方|妈妈|爸爸|男友|女友|家人|\d{1,2}:\d{2}|昨天|今天|未应答)[：:]/.test(line);
-      const previousEnded = /[。！？!?…]$/.test(text);
-      text += startsLikeMeta || previousEnded ? `\n${line}` : line;
-    }
-    return text;
-  });
-
-  return rebuilt
-    .join("\n\n")
-    .replace(/([。！？!?])(?=[^\n”’])/g, "$1\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-async function prepareImage(file: File): Promise<Blob | File> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(2, Math.max(1, 1600 / bitmap.width));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const context = canvas.getContext("2d");
-    if (!context) return file;
-    context.filter = "grayscale(1) contrast(1.22)";
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    return await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob ?? file), "image/png", 0.96));
-  } catch {
-    return file;
-  }
-}
-
-function assessRisk(input: string): RiskAssessment {
-  const findings = riskPatterns
-    .map((pattern) => ({ ...pattern, evidence: pattern.words.filter((word) => input.includes(word)) }))
-    .filter((item) => item.evidence.length > 0);
-  const level = findings.reduce<RiskLevel>((current, finding) => levelRank[finding.level] > levelRank[current] ? finding.level : current, "none");
-  if (level === "urgent") return { level, label: "需要优先确认安全", summary: "文字中出现了可能涉及伤害、自伤或未成年人危险的信号。机器可能误判，但这类内容不应只当作情绪话忽略。", findings };
-  if (level === "high") return { level, label: "出现高风险控制信号", summary: "文字中可能涉及跟踪、定位、限制行动或经济控制。先准备安全与证据，再考虑沟通技巧。", findings };
-  if (level === "watch") return { level, label: "建议继续观察", summary: "暂未发现立即危险，但请结合线下行为和长期模式判断。", findings };
-  return { level, label: "未识别到明确紧急信号", summary: "这不代表绝对安全。截图外的行为、环境和你的直觉仍然重要。", findings: [] };
-}
-
-function analyseText(input: string, context: ConversationContext): Analysis {
-  const compact = input.trim();
-  const lines = compact.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  const findings = languagePatterns
-    .map((pattern) => ({ ...pattern, evidence: pattern.words.filter((word) => compact.includes(word)) }))
-    .filter((item) => item.evidence.length > 0);
-  const facts = lines.filter((line) => factSignals.test(line)).slice(0, 6);
-  const featureText = findings.map((item) => item.title).join("、");
-  const contextLabel = { relationship: "伴侣 / 暧昧关系", family: "家人 / 原生家庭", workplace: "职场", other: "朋友" }[context];
-  const translation = findings.length
-    ? `这段话里，真正需要处理的事实${facts.length ? `包括：“${facts[0].slice(0, 46)}${facts[0].length > 46 ? "…" : ""}”` : "并不清楚"}。与此同时，对方用了${featureText}等表达，让你从讨论事情转向证明自己“不坏、不自私、没记错”。你不需要先接受这些评价，才有资格讨论事实和边界。仅凭这段对话不能诊断NPD，但不需要等到一个诊断成立，你才可以重视自己的不舒服。`
-    : "这段文字没有命中当前词库中的典型表达。它不代表关系一定健康，也不代表你的感受不重要；这里只能说，现有文字不足以支持更具体的判断。可以补充前后文、重复发生的行为，以及你拒绝后对方如何反应。";
-  return {
-    findings,
-    facts,
-    translation,
-    risk: assessRisk(compact),
-    contextLabel,
-    replies: context === "workplace" ? [
-      "为避免理解偏差，请书面确认这项任务的交付标准、优先级、截止时间和可用资源。",
-      "我愿意讨论具体工作问题，但请把反馈对应到任务和标准，不使用人格评价。",
-      "我会按今天确认的要求推进。如果标准或期限有变化，请在邮件中更新，我会据此重新安排。",
-    ] : [
-      "我只讨论具体发生的事情，不接受对我人格的评价。请把你的请求和时间说清楚。",
-      "我听到了你的情绪，但我不会在被羞辱或威胁时继续沟通。我们之后再谈。",
-      "我现在不回复。等我确认安全、想清楚边界后，再决定是否继续这段对话。",
-    ],
-  };
-}
 
 const helpLines = [
   { number: "110 / 120", name: "正在发生危险或需要急救", note: "危险、暴力、限制自由、受伤时优先" },
@@ -252,83 +22,6 @@ const helpLines = [
 ];
 
 export default function Home() {
-  const [mode, setMode] = useState<"image" | "text">("image");
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [text, setText] = useState("");
-  const [status, setStatus] = useState("");
-  const [progress, setProgress] = useState(0);
-  const [isReading, setIsReading] = useState(false);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [context, setContext] = useState<ConversationContext>("relationship");
-  const [error, setError] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const canAnalyse = text.trim().length >= 8 && !isReading;
-  const count = useMemo(() => text.trim().length, [text]);
-
-  function addFiles(incoming: File[]) {
-    setError("");
-    const accepted = incoming.filter((file) => file.type.startsWith("image/") && file.size <= 8 * 1024 * 1024);
-    if (accepted.length !== incoming.length) setError("仅支持图片，每张不超过8MB。被拒绝的文件没有读取。");
-    const next = [...files, ...accepted].slice(0, 10);
-    previews.forEach((url) => URL.revokeObjectURL(url));
-    setFiles(next);
-    setPreviews(next.map((file) => URL.createObjectURL(file)));
-    setAnalysis(null);
-  }
-
-  function removeFile(index: number) {
-    const next = files.filter((_, fileIndex) => fileIndex !== index);
-    previews.forEach((url) => URL.revokeObjectURL(url));
-    setFiles(next);
-    setPreviews(next.map((file) => URL.createObjectURL(file)));
-  }
-
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) { addFiles(Array.from(event.target.files ?? [])); }
-  function handleDrop(event: DragEvent<HTMLButtonElement>) { event.preventDefault(); addFiles(Array.from(event.dataTransfer.files)); }
-
-  async function readScreenshots() {
-    if (!files.length || isReading) return;
-    setError(""); setIsReading(true); setProgress(2); setStatus("正在准备本地中文识别…");
-    try {
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("chi_sim+eng", undefined, {
-        langPath: "/tessdata",
-        logger: (message) => {
-          if (typeof message.progress === "number") setProgress(Math.max(2, Math.round(message.progress * 100)));
-          if (message.status === "recognizing text") setStatus("正在读字和整理句子…");
-        },
-      });
-      const chunks: string[] = [];
-      for (let index = 0; index < files.length; index += 1) {
-        setStatus(`正在识别第 ${index + 1} / ${files.length} 张截图…`);
-        const prepared = await prepareImage(files[index]);
-        const result = await worker.recognize(prepared, {}, { blocks: true });
-        const cleaned = extractLocalOcrText(result.data, "zh") || cleanOCRText(result.data.text);
-        if (cleaned) chunks.push(cleaned);
-      }
-      await worker.terminate();
-      const recognized = chunks.join("\n\n—— 下一张截图 ——\n\n");
-      if (!recognized) throw new Error("empty");
-      setText(recognized.slice(0, 12000)); setMode("text"); setProgress(100);
-      setStatus("已在当前设备自动整理文字并重新断句。");
-    } catch {
-      setError("这次没有识别成功。可能是中文识别包未加载完成或图片太模糊；你仍可以切换到“粘贴文字”。");
-      setStatus(""); setProgress(0);
-    } finally { setIsReading(false); }
-  }
-
-  function runAnalysis() {
-    if (!canAnalyse) return;
-    setAnalysis(analyseText(text, context));
-    requestAnimationFrame(() => document.querySelector("#result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function loadExample() {
-    setText("对方：我什么时候骂你了？你就是太敏感，开不起玩笑。\n对方：我养你这么大都是为了你好，你现在必须马上发位置给我。\n我：我只是说刚才那句话让我很难受。\n对方：还不是因为你不听话，谁让你先惹我。\n对方：明天晚上八点回家。");
-    setMode("text"); setContext("family"); setAnalysis(null); setStatus("这是演示文字，你可以直接查看输出结构。");
-  }
-
   return (
     <main className="zh-page">
       <header className="topbar">
@@ -343,7 +36,7 @@ export default function Home() {
           <h1>把自己领回来，<br />再按自己的方式长大一次。</h1>
           <p className="hero-subtitle">当一段对话让你反复内疚、怀疑自己、解释不清，我们陪你把真正的信息、情绪压力和危险信号一层层分开。</p>
           <div className="hero-actions"><a className="hero-primary" href="#tool">开始拆解聊天</a><a className="hero-secondary" href="#self-check">先做关系自查</a></div>
-          <div className="trust-row"><span>匿名使用</span><span>截图本机识别</span><span>不用于训练AI</span><span>不会公开内容</span></div>
+          <div className="trust-row"><span>匿名使用</span><span>AI 辅助解读</span><span>本站不保存文本</span><span>不做人格诊断</span></div>
         </div>
         <div className="comfort-card" aria-label="写给正在怀疑自己的你">
           <span className="soft-orb orb-one" /><span className="soft-orb orb-two" />
@@ -357,61 +50,11 @@ export default function Home() {
 
       <section className="learn" id="learn">
         <div className="section-heading"><p className="eyebrow">先认识它</p><h2>情感操控不一定大喊大叫</h2><p>它也可能披着“爱你、为你好、你太敏感”的外衣。我们不隔着屏幕诊断谁是NPD，只辨认具体行为。</p></div>
-        <div className="learn-grid">
-          <a href="/zh/learn#gaslighting"><article><i>🪞</i><span>01</span><h3>否认与改写</h3><p>反复否认说过的话，让你开始怀疑自己的记忆和判断。</p><b>点开看看 →</b></article></a>
-          <a href="/zh/learn#humiliation"><article><i>🥀</i><span>02</span><h3>羞辱与贬低</h3><p>不讨论事情，转而攻击你的能力、人格、外貌或价值。</p><b>点开看看 →</b></article></a>
-          <a href="/zh/learn#control"><article><i>🕊️</i><span>03</span><h3>孤立与控制</h3><p>切断朋友、工作、钱和出行，让你越来越难独立选择。</p><b>点开看看 →</b></article></a>
-          <a href="/zh/learn#darvo"><article><i>⛈️</i><span>04</span><h3>为什么外人容易看反</h3><p>对方可能很冷静，而被长期逼迫的人只在最后一幕崩溃。</p><b>点开看看 →</b></article></a>
-        </div>
+        <div className="learn-grid">{learningCards.map(([title, description, icon, href], index) => <a href={href} key={href}><article><i>{icon}</i><span>{String(index + 1).padStart(2, "0")}</span><h3>{title}</h3><p>{description}</p><b>点开看看 →</b></article></a>)}</div>
         <p className="learn-note">一个句子不能定义一段关系。真正需要警惕的是：这些行为是否反复发生、是否升级，以及你说“不”之后会发生什么。<a href="/zh/learn">查看全部通俗科普 →</a></p>
       </section>
 
-      <section className="tool-section" id="tool">
-        <div className="tool-intro"><p className="eyebrow">把聊天交给我</p><h2>我们慢慢拆开看</h2><p>截图会在当前设备识别、整理，再进入本页分析。</p></div>
-        <div className="privacy-promise">
-          <strong>你的对话属于你</strong>
-          <p>截图仅在当前设备处理，不保存、不公开、不用于训练AI；刷新页面后清除。</p>
-        </div>
-        <div className="workspace-card">
-          <div className="mode-tabs" role="tablist" aria-label="输入方式">
-            <button className={mode === "image" ? "active" : ""} onClick={() => setMode("image")} role="tab" aria-selected={mode === "image"}>上传聊天截图</button>
-            <button className={mode === "text" ? "active" : ""} onClick={() => setMode("text")} role="tab" aria-selected={mode === "text"}>粘贴聊天文字</button>
-          </div>
-          <div className="context-picker context-picker-main" aria-label="对话发生场景"><span>这段对话来自</span>{([['relationship','伴侣 / 暧昧','partner'],['family','家人','family'],['workplace','职场','workplace'],['other','朋友 / 同学','friendship']] as const).map(([value,label,tone]) => <button type="button" data-context={tone} className={context === value ? "active" : ""} onClick={() => { setContext(value); setAnalysis(null); }} key={value}>{context === value && <span aria-hidden="true">✓ </span>}{label}</button>)}</div>
-
-          {mode === "image" ? (
-            <div className="upload-view">
-              <button className="mobile-picker" onClick={() => inputRef.current?.click()} type="button"><span>＋</span><strong>从手机相册选择聊天截图</strong><small>一次最多10张，每张不超过8MB</small></button>
-              <button className="dropzone" onClick={() => inputRef.current?.click()} onDrop={handleDrop} onDragOver={(event) => event.preventDefault()} type="button"><span className="upload-icon">↑</span><strong>{files.length ? `已选择 ${files.length} 张聊天截图` : "点击或拖入聊天截图"}</strong><small>一次最多10张，每张不超过8MB</small></button>
-              <input ref={inputRef} className="sr-only" type="file" accept="image/*" multiple onChange={handleFileChange} />
-              {previews.length > 0 && (
-                <div className="previews">
-                  {previews.map((url, index) => (
-                    <div className="preview" key={url}>
-                      {/* Blob previews stay on-device and should bypass image optimization. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`第${index + 1}张截图`} />
-                      <button onClick={() => removeFile(index)} aria-label={`移除第${index + 1}张截图`}>×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <button className="primary" disabled={!files.length || isReading} onClick={readScreenshots}>{isReading ? "正在本地识别…" : files.length ? `识别这 ${files.length} 张截图` : "先选择截图"}</button>
-              {(isReading || progress > 0) && <div className="progress"><span style={{ width: `${progress}%` }} /></div>}
-              <p className="upload-tip">截图仅在当前设备处理，不保存、不公开、不用于训练AI；刷新页面后清除。</p>
-            </div>
-          ) : (
-            <div className="text-view">
-              <label htmlFor="conversation">识别结果 / 聊天文字</label>
-              <textarea id="conversation" value={text} onChange={(event) => { setText(event.target.value.slice(0, 12000)); setAnalysis(null); }} placeholder="在这里粘贴聊天内容。" />
-              <div className="text-meta"><span>{status || "内容只在当前页面处理，刷新后清除。"}</span><span>{count} / 12000</span></div>
-              <div className="action-row"><button className="ghost" onClick={loadExample}>先看演示</button><button className="primary" disabled={!canAnalyse} onClick={runAnalysis}>替我拆解这段话</button></div>
-            </div>
-          )}
-          {error && <p className="inline-error" role="alert">{error}</p>}
-          <p className="boundary">这不是医疗或人格诊断。分析依据来自你提供的原文；证据不足时，我们会明确说“不确定”。</p>
-        </div>
-      </section>
+      <EnglishChecker language="zh" />
 
       <section className="pain-section">
         <div className="section-heading"><p className="eyebrow">你可能正在经历</p><h2>有些难受，很难向别人解释</h2></div>
@@ -423,21 +66,6 @@ export default function Home() {
       </section>
 
       <SelfCheck />
-
-      {analysis && <section className="result" id="result">
-        <div className="result-heading"><p className="eyebrow">对话拆解结果 · {analysis.contextLabel}</p><h2>把原话、压力和风险分开看</h2><p>这是本地关键词与规则分析，不是心理诊断，也不是通用大模型判断。</p></div>
-        <div className="result-grid">
-          <article className="result-card translation wide"><span className="card-label">我看见了什么</span><p>{analysis.translation}</p></article>
-          <article className="result-card wide"><span className="card-label">可以核实的原话与事实</span>{analysis.facts.length ? <ul>{analysis.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : <p>没有提取到明确的时间、金额、地点或行动安排。</p>}</article>
-          <article className="result-card wide"><span className="card-label">可能存在的压力或操控方式</span>{analysis.findings.length ? <div className="finding-list">{analysis.findings.map((finding) => <div className="finding" key={finding.title}><h3>{finding.title}</h3><p className="evidence">匹配到：{finding.evidence.map((word) => `“${word}”`).join("、")}</p><p>{finding.explanation}</p></div>)}</div> : <p>没有命中当前词库。这不等于关系健康，只代表现有文字不足以支持更强判断。</p>}</article>
-          <article className="result-card wide"><span className="card-label">这段对话可能怎样影响你</span><p>{analysis.findings.length ? "反复的否认、羞辱或控制，可能让你不断解释、自我怀疑，或把注意力放在避免对方反应上。长期受压后哭、吼、慌乱或麻木，不等于这些压力是你造成的。" : "仅凭这段文字无法确认影响程度。可以继续观察睡眠、害怕、自我怀疑，以及你是否越来越不敢表达和拒绝。"}</p></article>
-          <article className={`risk-card wide ${analysis.risk.level}`}><div><span className="risk-dot" /><p className="card-label">安全信号</p><h3>{analysis.risk.label}</h3><p>{analysis.risk.summary}</p></div>{analysis.risk.findings.length > 0 && <div className="risk-findings">{analysis.risk.findings.map((finding) => <div key={finding.title}><strong>{finding.title}</strong><p>匹配到：{finding.evidence.map((item) => `“${item}”`).join("、")}</p><span>{finding.guidance}</span></div>)}</div>}</article>
-          <article className="result-card wide"><span className="card-label">可直接复制的简短回复</span><div className="reply-list"><button onClick={() => navigator.clipboard?.writeText(analysis.replies[0])}><span>1</span><p>{analysis.replies[0]}</p><small>点此复制</small></button></div></article>
-          <article className="result-card wide"><span className="card-label">现在可以先做的一件具体小事</span><p>{analysis.risk.level === "urgent" || analysis.risk.level === "high" ? "把一条带日期的原始记录保存在对方接触不到的位置，并把具体原话告诉一位可信的人。" : context === "workplace" ? "把一次口头任务写成四项：交付物、截止时间、资源、验收标准，并发出书面确认。" : "先等20分钟再回复，把事实和评价分成两行，只回应能核实的事实。"}</p></article>
-          <article className="result-card wide"><span className="card-label">不确定之处</span><p>本页不能核实事件、判断动机，也不能诊断虐待、创伤、NPD或任何人格障碍。OCR还可能读错否定词、金额、时间和左右消息顺序；证据不足时，请把结果当作线索，不当作结论。</p></article>
-        </div>
-      </section>}
-
       <CommunityBoard />
 
       <section className="credibility">

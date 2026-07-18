@@ -25,6 +25,17 @@ const chineseFonts = [
   { id: "reading", name: "宋体" },
 ];
 
+const fontStacks: Record<string, string> = {
+  system: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  humanist: '"Trebuchet MS", Arial, sans-serif',
+  mono: '"Aptos Mono", "SFMono-Regular", Consolas, monospace',
+  soft: '"Yuanti SC", "YouYuan", "PingFang SC", sans-serif',
+  clear: '"PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif',
+  kai: '"Kaiti SC", "STKaiti", "KaiTi", cursive',
+  reading: '"Songti SC", "STSong", "SimSun", serif',
+};
+
 export default function ThemeControls({ language = "en" }: { language?: "zh" | "en" }) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState(() => typeof window === "undefined" ? "embrace" : localStorage.getItem("grow-theme") || "embrace");
@@ -40,9 +51,11 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
 
   useEffect(() => {
     document.documentElement.dataset.font = resolvedFont;
+    document.body.dataset.font = resolvedFont;
+    document.body.style.fontFamily = fontStacks[resolvedFont] || fontStacks[defaultFont];
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
     localStorage.setItem(`grow-font-${language}`, resolvedFont);
-  }, [language, resolvedFont]);
+  }, [defaultFont, language, resolvedFont]);
 
   function chooseTheme(next: string) {
     setTheme(next);
@@ -50,6 +63,7 @@ export default function ThemeControls({ language = "en" }: { language?: "zh" | "
 
   function chooseFont(next: string) {
     setFont(next);
+    setOpen(false);
   }
 
   return (

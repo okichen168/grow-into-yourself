@@ -1,69 +1,147 @@
 <p align="center">
-  <a href="./README.zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
+  <a href="./README.zh-CN.md">简体中文</a> · <strong>English</strong>
 </p>
 
-# Grow Into Yourself
+<h1 align="center">Grow Into Yourself</h1>
 
-**Live demo:** https://clear-translate.creamy-scarf-2160.chatgpt.site
+<p align="center">
+  <strong>A privacy-first clarity tool for conversations that leave you guilty, confused, frightened, or smaller than before.</strong>
+</p>
 
-![From confusion to clarity](./docs/readme-hero.jpg)
+<p align="center">
+  <a href="https://clear-translate.creamy-scarf-2160.chatgpt.site"><strong>Try the live demo →</strong></a>
+</p>
 
-Grow Into Yourself is a privacy-first clarity tool for difficult chats. It helps separate facts, pressure, safety signals and calmer boundary words.
+<p align="center">
+  <img src="docs/readme-hero.jpg" alt="Grow Into Yourself — from confusion to clarity" width="880" />
+</p>
 
-This is an early public test for people who feel confused, blamed or controlled in difficult relationships. It does not diagnose anyone as NPD or replace emergency, medical, legal or mental-health support.
+<p align="center">
+  <code>AI-assisted analysis</code> ·
+  <code>No sign-up</code> ·
+  <code>No diagnosis</code> ·
+  <code>English / 中文</code>
+</p>
+
+## Why this exists
+
+Some of the hardest conversations do not look dramatic from the outside.
+
+They arrive as a calm “I’m only doing this for you,” a joke that leaves someone ashamed, a manager quietly rewriting what happened, or a family member turning every boundary into proof of disloyalty.
+
+After enough conversations like these, people often stop asking *“Was that fair?”* and start asking *“Am I the problem?”*
+
+That gap matters. Psychological aggression can involve language used to cause emotional harm or exert control. Emotional abuse may appear as isolation, intimidation, humiliation, guilt or denial rather than physical violence. Workplace bullying and harassment are also recognised psychosocial risks—not merely personality clashes.
+
+Grow Into Yourself was built for the moment before someone has the right words: when they have a chat in front of them, a knot in their stomach, and no neutral way to read what just happened.
+
+It does not decide who is good or bad. It helps the user slow the conversation down, examine the actual words, notice pressure, and recover enough clarity to choose what happens next.
 
 ## What it does
 
-- Keeps the other person’s messages and the user’s reply in separate text fields.
-- Uses the server-side `/api/analyze` route for structured AI-assisted analysis.
-- Falls back to clearly labelled local basic analysis when AI is unavailable.
-- Preserves relationship-specific check-ins for partner/dating, family, workplace and friendship contexts.
-- Includes practical learning pages, visual themes and a moderated anonymous support wall.
+| Read the conversation                                               | Find the pressure                                                                        | Recover your choices                                      |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Separates the other person’s words from the user’s reply            | Flags possible guilt, humiliation, blame-shifting, threats, denial, isolation or control | Suggests soft, firm and exit-style boundary replies       |
+| Reviews individual sentences instead of producing a generic summary | Explains why a sentence may hurt and where evidence remains uncertain                    | Surfaces safety concerns only when the text supports them |
 
-## Privacy principles
+The result is designed more like careful margin notes than a chatbot verdict:
 
-- Screenshot upload is paused in this test version.
-- Text may be sent to the configured AI model for the current analysis.
-- This site does not save private conversation text submitted for analysis.
-- Community notes and feedback are saved only after active submission; approved notes become public.
-- Secrets, local databases, exports and user uploads must never be committed.
+* **What happened**
+* **Possible pressure signals**
+* **Patterns in the user’s own reply**
+* **Sentence-by-sentence annotations**
+* **A clearer reading of each sentence**
+* **Three boundary reply options**
+* **Risk level and proportionate safety guidance**
 
-## What it cannot diagnose
+## Product principles
 
-The tool cannot diagnose NPD, any personality disorder, trauma, abuse, a crime or another person’s intention. It focuses on observable words, repeated behaviour, boundaries, impact and safety signals. When evidence is limited, the result should say so.
+**Behaviour, not labels.**
+The tool does not diagnose NPD or any personality disorder. It discusses observable language, repetition, power, boundaries and impact.
 
-## Research and sources
+**Uncertainty stays visible.**
+One sentence cannot define an entire relationship. When the evidence is incomplete, the analysis should say so rather than inventing context.
 
-The educational pages link to the professional and research sources used for individual topics. See the [English learning guide](https://clear-translate.creamy-scarf-2160.chatgpt.site/learn#sources) or the [Chinese learning guide](https://clear-translate.creamy-scarf-2160.chatgpt.site/zh/learn#sources). Sources inform the educational framework; they do not turn a chat analysis into a clinical diagnosis.
+**Safety without alarmism.**
+Urgent guidance is reserved for credible signs such as threats, stalking, forced control, danger to a child, self-harm coercion or harm to others.
 
-## Local development
+**The user keeps agency.**
+The output offers interpretations and possible wording. It does not order the user to reconcile, confront, forgive or leave.
 
-Requires Node.js 22.13 or newer.
+## How it works
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
+```text
+Other person’s messages ─┐
+                         ├─> /api/analyze ─> OpenRouter model ─> structured JSON
+My reply or draft ───────┘                         │
+                                                  └─> local fallback if unavailable
 ```
 
-## Environment variables
+1. The user pastes the other person’s messages into the first box.
+2. Their previous reply or draft response can be added separately.
+3. The server-side API sends the text to the configured AI model.
+4. The model returns structured analysis rather than free-form chat.
+5. If the provider is unavailable, the page remains usable through a clearly labelled basic local fallback.
 
-| Variable | Purpose |
-| --- | --- |
-| `ADMIN_KEY` | Protects the admin API at runtime. |
-| `OPENROUTER_API_KEY` | Server-side OpenRouter credential. Never expose it to browser code. |
-| `OPENROUTER_MODEL` | Optional model override with a server-side fallback. |
+Keeping the speakers in separate fields avoids unreliable speaker guessing and removes slow mobile OCR from the critical path.
 
-Never commit `.env.local` or a real key.
+## Technical overview
 
-## Testing
+| Layer         | Implementation                                           |
+| ------------- | -------------------------------------------------------- |
+| Interface     | Next.js, React, TypeScript                               |
+| AI endpoint   | `POST /api/analyze`                                      |
+| Model routing | OpenRouter-compatible server request                     |
+| Configuration | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`                 |
+| Response      | Structured JSON with sentence analysis and reply options |
+| Resilience    | Local fallback instead of a broken page                  |
+| Languages     | English and Simplified Chinese                           |
+| Safety        | Non-diagnostic prompting and urgent-risk gating          |
 
-```bash
-npm run lint
-npm test
-npm run build
+The API key belongs only in server-side environment variables. It must never be committed to GitHub or exposed in client-side JavaScript.
+
+```env
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=deepseek/deepseek-chat-v3-0324:free
 ```
 
-## Deployment notes
+Available free-model identifiers may change. Deployment configuration should therefore remain replaceable rather than hard-coded into the interface.
 
-The project uses Vinext, Cloudflare Workers, D1 and Drizzle. Keep `.openai/hosting.json` aligned with the Sites project. Configure secrets in the deployment environment, verify a preview, and only then update production. A GitHub push does not deploy or overwrite the current site.
+## Privacy
+
+Text may be sent to the configured AI model to generate this analysis. This site does not save the conversation. Remove names and avoid identity numbers, bank details, passwords and exact addresses.
+
+The project is privacy-conscious, but it does not make the inaccurate claim that AI analysis happens entirely on the user’s device.
+
+## What this is not
+
+Grow Into Yourself is not a therapist, emergency service, legal adviser or diagnostic system. It cannot determine a person’s intentions from a short excerpt, and it should not replace qualified local support where immediate safety is involved.
+
+## Evidence behind the problem
+
+The product direction is informed by established definitions and research:
+
+* [WHO — Violence against women](https://www.who.int/news-room/fact-sheets/detail/violence-against-women)
+* [CDC — About intimate partner violence](https://www.cdc.gov/intimate-partner-violence/about/index.html)
+* [UN Women — Signs of relationship abuse](https://knowledge.unwomen.org/en/articles/faqs/faqs-the-signs-of-relationship-abuse-and-how-to-help)
+* [The National Domestic Violence Hotline — Emotional abuse](https://www.thehotline.org/resources/what-is-emotional-abuse/)
+* [The National Domestic Violence Hotline — Types of abuse](https://www.thehotline.org/resources/types-of-abuse/)
+* [WHO — Mental health at work](https://www.who.int/news-room/fact-sheets/detail/mental-health-at-work)
+* [ILO — Experiences of violence and harassment at work](https://www.ilo.org/publications/major-publications/experiences-violence-and-harassment-work-global-first-survey)
+* [UNICEF — Violence against children](https://www.unicef.org/protection/violence-against-children)
+
+These sources do not endorse or validate this software. They support the underlying premise that psychological pressure, controlling behaviour, emotional abuse and workplace harassment can be consequential even when no physical injury is visible.
+
+## Status
+
+This is an early public test built to explore a narrow question:
+
+> Can AI help someone read a difficult conversation more clearly without diagnosing strangers, exaggerating danger, or taking away the user’s choices?
+
+Feedback is welcome, especially where the analysis feels vague, overconfident, culturally awkward or unsafe.
+
+---
+
+<p align="center">
+  <strong>Understand the behaviour. Keep your choices. Grow into yourself.</strong>
+</p>

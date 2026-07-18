@@ -4,6 +4,33 @@ export const runtime = "edge";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek/deepseek-chat-v3-0324:free";
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 5;
+
+type RateBucket = { count: number; resetAt: number };
+
+// This is deliberately lightweight for the public test. It limits one running
+// instance only; production should use Cloudflare Rate Limiting or KV so the
+// counter is shared across isolates. No conversation text is stored here.
+const rateBuckets = new Map<string, RateBucket>();
+
+function clientAddress(request: Request) {
+  return request.headers.get("cf-connecting-ip")
+    || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || "unknown";
+}
+
+function isRateLimited(request: Request) {
+  const now = Date.now();
+  const address = clientAddress(request);
+  const current = rateBuckets.get(address);
+  if (!current || current.resetAt <= now) {
+    rateBuckets.set(address, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  current.count += 1;
+  return current.count > RATE_LIMIT_MAX_REQUESTS;
+}
 
 function contextLabel(context: AnalysisContext, language: AnalysisLanguage) {
   const labels = {
@@ -50,9 +77,11 @@ function parseAiAnalysis(value: unknown, language: AnalysisLanguage, hasUrgentSi
   const allowedRisk = language === "zh" ? ["低", "中", "高", "紧急"] : ["Low", "Medium", "High", "Urgent"];
   if (typeof row.summary !== "string" || !row.summary.trim() || typeof row.suggestedReply !== "string" || !row.suggestedReply.trim() || typeof row.riskLevel !== "string" || !allowedRisk.includes(row.riskLevel)) return null;
   if (typeof row.urgentWarning !== "string") return null;
-  const riskLevel = !hasUrgentSignal && (row.riskLevel === "紧急" || row.riskLevel === "Urgent")
-    ? (language === "zh" ? "高" : "High")
-    : row.riskLevel;
+  const riskLevel = hasUrgentSignal
+    ? (language === "zh" ? "紧急" : "Urgent")
+    : (row.riskLevel === "紧急" || row.riskLevel === "Urgent")
+      ? (language === "zh" ? "高" : "High")
+      : row.riskLevel;
 
   return {
     summary: row.summary.trim(),
@@ -82,6 +111,11 @@ export async function POST(request: Request) {
   }
 
   const language = payload.language === "en" ? "en" : "zh";
+  if (isRateLimited(request)) {
+    return Response.json({
+      error: language === "zh" ? "请求太频繁了，请一分钟后再试。" : "Too many requests. Please try again in one minute.",
+    }, { status: 429, headers: { "retry-after": "60" } });
+  }
   const context: AnalysisContext = ["relationship", "family", "workplace", "friendship"].includes(payload.context || "") ? payload.context as AnalysisContext : "relationship";
   const { otherText, myText } = normaliseInput(payload.otherText || "", payload.myText || "");
   if (otherText.length < 2) return Response.json({ error: language === "zh" ? "请先粘贴对方发来的话。" : "Please paste the other person’s messages first." }, { status: 400 });

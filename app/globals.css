@@ -181,6 +181,10 @@ nav a:hover { color: var(--rose-dark); }
 .reply-options { display:grid; gap:10px; }
 .reply-options .copy-reply { align-items:flex-start; flex-direction:column; }
 .reply-options .copy-reply>span { color:var(--rose-dark); font-weight:900; }
+.recommended-reply { margin:10px 0 18px; padding:16px; border:1px solid color-mix(in srgb,var(--rose) 42%,var(--line)); border-radius:18px; background:color-mix(in srgb,var(--rose-soft) 46%,var(--paper)); }
+.recommended-reply>strong { display:block; margin-bottom:7px; color:var(--rose-dark); }
+.recommended-reply .copy-reply { margin:0; background:color-mix(in srgb,var(--paper) 92%,transparent); }
+.recommended-reply .copy-reply>span { color:var(--ink); font-weight:700; }
 .local-finding + .local-finding { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
 .copy-reply { width:100%; margin-top:8px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--line); border-radius:14px; text-align:left; background:var(--paper); cursor:pointer; }
 .copy-reply:hover { border-color:var(--rose); }

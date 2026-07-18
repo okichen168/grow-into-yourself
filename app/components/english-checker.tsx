@@ -76,6 +76,11 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
         body: JSON.stringify({ ...input, language, context }),
       });
       const data = await response.json();
+      if (response.status === 429) {
+        setAnalysis(null);
+        setStatus(data.error || (language === "zh" ? "请求太频繁了，请一分钟后再试。" : "Too many requests. Please try again in one minute."));
+        return;
+      }
       if (!response.ok || !data.analysis) throw new Error("unavailable");
       setAnalysis(data.analysis);
       setStatus(data.fallback ? ui.failed : "");
@@ -108,9 +113,8 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
         <b>{language === "zh" ? "为什么会让人难受" : "Why it can hurt"}</b><p>{item.whyItHurts}</p>
         <b>{language === "zh" ? "更清醒的读法" : "Clearer reading"}</b><p>{item.clearerReading}</p>
       </div>) : <p>{language === "zh" ? "没有足够内容做逐句拆解。" : "Not enough text for sentence-level reading."}</p>}</article>
-      <article><h4>{ui.sections[4]}</h4><div className="reply-options">
+      <article><h4>{ui.sections[4]}</h4><div className="recommended-reply"><strong>{language === "zh" ? "最推荐的回复" : "Recommended reply"}</strong><button type="button" className="copy-reply" onClick={() => navigator.clipboard?.writeText(analysis.suggestedReply)}><span>{analysis.suggestedReply}</span><small>Copy</small></button></div><div className="reply-options">
         {(["soft", "firm", "exit"] as const).map((key) => analysis.replyOptions?.[key] ? <button type="button" className="copy-reply" onClick={() => navigator.clipboard?.writeText(analysis.replyOptions[key])} key={key}><span>{key === "soft" ? (language === "zh" ? "温和边界" : "Soft boundary") : key === "firm" ? (language === "zh" ? "坚定边界" : "Firm boundary") : (language === "zh" ? "不争辩退出" : "Exit without arguing")}</span>{analysis.replyOptions[key]}<small>Copy</small></button> : null)}
-        {!analysis.replyOptions?.soft && <button type="button" className="copy-reply" onClick={() => navigator.clipboard?.writeText(analysis.suggestedReply)}>{analysis.suggestedReply}<small>Copy</small></button>}
       </div></article>
       <article><h4>{ui.sections[5]}</h4><p>{analysis.riskLevel}</p></article>
       {analysis.urgentWarning && <article><h4>{ui.sections[6]}</h4><p>{analysis.urgentWarning}</p></article>}

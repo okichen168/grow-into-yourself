@@ -111,7 +111,7 @@ export function localAnalyze(otherText: string, myText: string, language: Analys
     suggestedReply: language === "zh"
       ? "我不会在被羞辱、威胁或要求证明孝顺的情况下继续沟通。请把具体事情说清楚，不要攻击我的人格和选择。"
       : "I will not continue while I am being shamed, threatened, or asked to prove my worth. Please keep this to facts and specific requests.",
-    riskLevel: hasUrgent ? (language === "zh" ? "高" : "High") : (hits.length >= 3 ? (language === "zh" ? "中" : "Medium") : (language === "zh" ? "低" : "Low")),
+    riskLevel: hasUrgent ? (language === "zh" ? "紧急" : "Urgent") : (hits.length >= 3 ? (language === "zh" ? "中" : "Medium") : (language === "zh" ? "低" : "Low")),
     urgentWarning: hasUrgent
       ? (language === "zh" ? "文字里出现了明确的威胁、跟踪、自伤、伤害他人、限制自由或强制控制信号。请优先确认现实安全，保存记录，并联系可信的人或当地紧急支持。" : "The text includes an explicit threat, stalking, self-harm, harm to others, confinement, or coercive-control signal. Prioritise real-world safety, save records, and contact trusted or local emergency support.")
       : "",

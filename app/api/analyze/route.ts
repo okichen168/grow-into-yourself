@@ -27,15 +27,15 @@ const analysisSchema = {
   type: "object", additionalProperties: false,
   required: ["mode", "statusReason", "overview", "evidenceBoundary", "interactionPattern", "whatTheyArePushing", "reasonableParts", "concerningParts", "keyAnnotations", "selfGrounding", "nextStepOptions", "risk"],
   properties: {
-    mode: { type: "string", const: "ai" }, statusReason: { type: "string", const: "success" }, overview: { type: "string" },
+    mode: { type: "string", const: "ai" }, statusReason: { type: "string", const: "success" }, overview: { type: "string", maxLength: 180 },
     evidenceBoundary: { type: "object", additionalProperties: false, required: ["observed", "likely", "uncertain"], properties: { observed: stringArray(8), likely: stringArray(8), uncertain: stringArray(8) } },
     interactionPattern: { type: "object", additionalProperties: false, required: ["title", "steps", "explanation"], properties: {
-      title: { type: "string" }, explanation: { type: "string" }, steps: { type: "array", maxItems: 6, items: { type: "object", additionalProperties: false, required: ["action", "evidence"], properties: { action: { type: "string" }, evidence: stringArray(3) } } },
+      title: { type: "string" }, explanation: { type: "string" }, steps: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["action", "evidence"], properties: { action: { type: "string" }, evidence: stringArray(3) } } },
     } },
     whatTheyArePushing: { type: "array", maxItems: 6, items: { type: "object", additionalProperties: false, required: ["point", "evidence", "confidence"], properties: { point: { type: "string" }, evidence: stringArray(3), confidence: { type: "string", enum: confidenceValues } } } },
     reasonableParts: stringArray(6),
-    concerningParts: { type: "array", maxItems: 6, items: { type: "object", additionalProperties: false, required: ["label", "explanation", "evidence", "severity", "confidence"], properties: { label: { type: "string" }, explanation: { type: "string" }, evidence: stringArray(4), severity: { type: "string", enum: severityValues }, confidence: { type: "string", enum: confidenceValues } } } },
-    keyAnnotations: { type: "array", minItems: 2, maxItems: 6, items: { type: "object", additionalProperties: false, required: ["quotes", "tags", "keyPoint", "grounding", "uncertainty"], properties: { quotes: stringArray(4), tags: stringArray(3), keyPoint: { type: "string" }, grounding: { type: "string" }, uncertainty: { type: "string" } } } },
+    concerningParts: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["label", "explanation", "evidence", "severity", "confidence"], properties: { label: { type: "string" }, explanation: { type: "string" }, evidence: stringArray(4), severity: { type: "string", enum: severityValues }, confidence: { type: "string", enum: confidenceValues } } } },
+    keyAnnotations: { type: "array", minItems: 2, maxItems: 5, items: { type: "object", additionalProperties: false, required: ["quotes", "tags", "keyPoint", "grounding", "uncertainty"], properties: { quotes: stringArray(4), tags: stringArray(3), keyPoint: { type: "string", maxLength: 120 }, grounding: { type: "string" }, uncertainty: { type: "string" } } } },
     selfGrounding: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
     nextStepOptions: { type: "array", maxItems: 3, items: { type: "object", additionalProperties: false, required: ["type", "title", "reason", "message"], properties: { type: { type: "string", enum: nextStepValues }, title: { type: "string" }, reason: { type: "string" }, message: { type: "string" } } } },
     risk: { type: "object", additionalProperties: false, required: ["level", "reasons", "urgentWarning"], properties: { level: { type: "string", enum: ["低", "中", "高", "紧急"] }, reasons: stringArray(6), urgentWarning: { type: "string" } } },
@@ -72,10 +72,10 @@ function parseAnalysis(value: unknown, urgent: boolean): AiAnalysis | null {
   const pattern = row.interactionPattern as Record<string, unknown> | null;
   if (!boundary || !pattern) return null;
   const observed = strings(boundary.observed, 8); const likely = strings(boundary.likely, 8); const uncertain = strings(boundary.uncertain, 8);
-  const stepsRaw = objects(pattern.steps, 6);
+  const stepsRaw = objects(pattern.steps, 5);
   if (!observed || !likely || !uncertain || typeof pattern.title !== "string" || typeof pattern.explanation !== "string" || !stepsRaw) return null;
   const steps = stepsRaw.map((entry) => { const item = entry as Record<string, unknown>; const evidence = strings(item?.evidence, 3); return item && typeof item.action === "string" && evidence ? { action: item.action.trim(), evidence } : null; });
-  const pushingRaw = objects(row.whatTheyArePushing, 6); const concernsRaw = objects(row.concerningParts, 6); const annotationsRaw = objects(row.keyAnnotations, 6); const nextRaw = objects(row.nextStepOptions, 3);
+  const pushingRaw = objects(row.whatTheyArePushing, 6); const concernsRaw = objects(row.concerningParts, 5); const annotationsRaw = objects(row.keyAnnotations, 5); const nextRaw = objects(row.nextStepOptions, 3);
   const reasonableParts = strings(row.reasonableParts, 6); const selfGrounding = strings(row.selfGrounding, 4);
   if (!pushingRaw || !concernsRaw || !annotationsRaw || !nextRaw || !reasonableParts || !selfGrounding || steps.some((item) => !item)) return null;
   const whatTheyArePushing = pushingRaw.map((entry) => { const item = entry as Record<string, unknown>; const evidence = strings(item?.evidence, 3); return item && typeof item.point === "string" && evidence && confidenceValues.includes(item.confidence as Confidence) ? { point: item.point.trim(), evidence, confidence: item.confidence as Confidence } : null; });
@@ -98,8 +98,7 @@ async function callAnalysisApi(url: string, key: string, model: string, messages
     method: "POST", signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model, temperature: 0.2, max_tokens: 2200, stream: false, messages,
-      reasoning: { effort: "low", exclude: true },
+      model, temperature: 0.2, max_tokens: 1500, stream: false, messages,
       provider: { require_parameters: true, data_collection: "deny" },
       response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: analysisSchema } },
     }),

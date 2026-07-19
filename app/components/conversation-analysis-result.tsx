@@ -37,9 +37,9 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
   const importantUncertainty = analysis.evidenceBoundary.uncertain[0] || "";
   const overview = leadSentence(analysis.overview);
   return <div className="english-result conversation-analysis-result">
-    <span className="analysis-mode">{analysis.mode === "ai" ? (language === "zh" ? "AI 深度分析" : "AI analysis") : (language === "zh" ? "基础分析" : "Basic analysis")}</span>
-    {analysis.mode === "local" && analysis.statusReason === "quota" && <p className="analysis-mode-note">{language === "zh" ? "深度分析当前不可用" : "Deep analysis is currently unavailable"}</p>}
-    {analysis.mode === "local" && analysis.statusReason === "timeout" && <p className="analysis-mode-note">{language === "zh" ? "深度分析暂时超时，以下只整理原文中最明确的结构。" : "Deep analysis timed out. The notes below cover only the clearest structure in the text."}</p>}
+    <div className={`analysis-mode-banner ${analysis.mode}`}><strong>{analysis.mode === "ai" ? (language === "zh" ? "深度分析" : "Deep analysis") : (language === "zh" ? "基础分析" : "Basic analysis")}</strong>
+      {analysis.mode === "local" && <p>{language === "zh" ? "深度分析暂未完成，以下只整理原文中最明确的内容。" : "Deep analysis did not finish. The notes below cover only the clearest content in the text."}</p>}
+    </div>
 
     <section className="analysis-overview"><h3>{ui.overview}</h3><p><strong>{overview.lead}</strong>{overview.rest && <> {overview.rest}</>}</p></section>
 
@@ -49,11 +49,11 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
       {importantUncertainty && <p className="boundary-uncertainty"><b>{ui.uncertainFacts}</b>{importantUncertainty}</p>}
     </section>}
 
-    {(analysis.interactionPattern.steps.length > 0 || analysis.interactionPattern.explanation) && <section className="analysis-pattern semantic-notice"><h3>{ui.pattern}</h3><h4>{analysis.interactionPattern.title}</h4>
-      {analysis.interactionPattern.steps.length > 0 && <ol className="interaction-steps">{analysis.interactionPattern.steps.map((step) => {
+    {analysis.interactionPattern.steps.length >= 3 && <section className="analysis-pattern semantic-notice"><h3>{ui.pattern}</h3><h4>{analysis.interactionPattern.title}</h4>
+      <ol className="interaction-steps">{analysis.interactionPattern.steps.slice(0, 5).map((step) => {
         const quote = step.evidence.find((item) => !annotationQuotes.has(item));
         return <li key={`${step.action}-${step.evidence.join("|")}`}><b>{step.action}</b>{quote && <q>{shortQuote(quote)}</q>}</li>;
-      })}</ol>}
+      })}</ol>
       <p className="pattern-conclusion">{analysis.interactionPattern.explanation}</p>
     </section>}
 
@@ -64,7 +64,7 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
     {analysis.reasonableParts.length > 0 && <section className="semantic-ground"><h3>{ui.reasonable}</h3><ul>{analysis.reasonableParts.map((item) => <li key={item}>{item}</li>)}</ul></section>}
 
     {analysis.concerningParts.length > 0 && <section><h3>{ui.concerns}</h3><div className="analysis-card-grid">
-      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{item.explanation}</h4><small>{item.label} · {item.confidence}</small>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}</article>)}
+      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{item.label}</h4><p>{item.explanation}</p>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}<small>{item.confidence} · {item.severity === "high" ? (language === "zh" ? "高压" : "High pressure") : (language === "zh" ? "值得注意" : "Notice")}</small></article>)}
     </div></section>}
 
     {analysis.keyAnnotations.length > 0 && <section><h3>{ui.annotations}</h3><div className="annotation-stack">

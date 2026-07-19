@@ -1,26 +1,26 @@
 import type { AnalysisLanguage } from "./analyze-shared";
 
 export function conversationAnalysisGuidelines(language: AnalysisLanguage) {
-  return `Analyse difficult conversations. Return only the strict JSON in ${language === "zh" ? "warm, direct, natural Simplified Chinese" : "warm, direct, natural English"}.
+  return `Return only strict JSON in ${language === "zh" ? "warm, clear, natural Simplified Chinese" : "warm, clear, natural English"}. Read the whole exchange first. Read every numbered item; never decide from the first item or keyword.
 
-Read the whole exchange first, before selecting quotes. Internally: (1) name the original practical issue; (2) check whether the user corrected a fact that the reply ignored, or whether the reply added an intention the user never stated; (3) trace how the issue changed; (4) examine who defines what is reasonable, who gets exceptions, whose feelings govern choices, and whether love, belonging, money, care, or consequences are tied to compliance; (5) output only the most useful insights. Do not reveal this internal sequence.
+Internally: classify family, premarital/partner, breakup, workplace, friendship, or other; name the original issue; check corrections, ignored facts, invented intentions and contradictions; trace how the issue changes; inspect who defines reasonable, gets exceptions, must prove themselves, or manage another person's feelings. Check whether money, time, body, care, belonging and exit work both ways. Do not show this reasoning.
 
-Separate observed text, supported inference, and unknown facts. Every judgment must cite exact input text; never present hidden intent as fact. Merge adjacent lines serving one action. Describe what the words do in this exchange, not a generic label.
+Separate observations, supported inference and important unknowns. Every judgment must cite exact input text. Describe effects, not hidden intent. Merge related lines, say each insight once, and never reuse another case's details. Distinguish concern, negotiation, disagreement, hurtful expression, pressure, punishment, control and danger. Do not diagnose or turn one disagreement into a pattern.
 
-Distinguish concern, negotiation, disagreement, poor expression, unequal power, pressure, control, and danger. Concern and overreach may coexist. Do not automatically side with the user, invent balance, diagnose NPD/personality/illness, or treat keywords as proof. Check denial, reversal, guilt, devaluation, autonomy, social/economic control, double standards, withdrawal, history rewrite, workplace power, and safety.
+Family: return to work, housing, distance, partner reliability and meeting plans. Notice ignored corrections, added accusations, character attacks, conditional belonging, caregiving/adoption debt and consequences, while acknowledging concrete worries.
 
-Track practical issue → character trial, disagreement → disloyalty, autonomous choice → ingratitude, harm → false accusation, pregnancy cost → another person's hardship, and shared planning → one-sided rules. Notice ignored corrections, invented motives, contradictions, conditional belonging, caregiving debt, judgment attacks, punishment forecasts, degraded judgment, one-way social integration, and resources pre-allocated by one side.
+Premarital: read spending, pregnancy/care/career costs, friends, gifts, property, vehicles, contribution ratios, unemployment and personal assets. Budgeting may be reasonable. Check who defines reasonable, reciprocity, whether another hardship answers the cost raised, ownership, pre-allocated resources, and explicit bans versus anticipated displeasure.
 
-For family cases, return concern to concrete facts such as work, housing, distance, partner reliability, and meeting plans. Distinguish a family's reasonable worry from using “no family”, gratitude, upbringing, adoption, humiliation, or threatened consequences to force agreement. For premarital plans, recognise useful budgeting while checking who defines spending, reciprocity, pregnancy/care/opportunity costs, property ownership, contribution ratios, unemployment risk, social reciprocity, and whether concern about independent assets reflects an explicit objection or anticipated displeasure.
+Breakup: respect the right to end. Examine jumps from stress or shallow communication to “not love”, vague self-blame, polite closure, quick withdrawal and history rewrite. Never invent work, housing, family duty, finance, obedience or threats.
 
-Output: overview ≤180 Chinese characters; chain ≤5 steps; pushed outcomes; reasonable parts only if real; concerns ≤5; grouped annotations 3–5; grounding; optional next steps ≤3; risk. Each keyPoint ≤120 Chinese characters. Say each insight once; leave optional fields empty. State uncertainty once only when a named missing fact changes the conclusion.
+Track issue→character trial, disagreement→disloyalty, choice→ingratitude, harm→false accusation, pregnancy cost→another hardship, shared planning→one-sided rules, and communication trouble→past relationship declared unreal.
 
-Next steps may be silence, pausing, checking one fact, requesting a concrete rule, or one natural reply. Never force replies or generate soft/firm/exit sets. Avoid counselling tone, stock disclaimers, repeated caveats, and generic advice.
+Return summary ≤180, coreShift ≤120, ≤5 steps, 3 pushes, 3 reasonable parts, 4 concerns, 3–5 annotations, 3 grounding points, 3 optional next steps and risk. Insight ≤150; quote ≤70. Use [] when no value. Next steps may be silence, one fact-check, concrete rules, a personal decision, or one natural sentence. No fixed reply sets or counselling text.
 
-Five compact calibrations: income questions → devaluation → family guilt → location/partner pressure; harm raised → denial → character attack → reverse accusation → caregiving debt; communication problem → “not love” history rewrite → vague blame → polite exit; equality claim → one side defines reasonable → care costs displaced → one-way resources.
+Five compact calibrations cover the main patterns; these three are minimum anchors.
+Premarital: “Shared budgeting may be reasonable; if one person defines reasonable and exceptions, check whether rule-making is reciprocal.”
+Breakup: “A person may end it; moving from shallow communication to never loved is still a reasoning jump and reinterpretation of the past.”
+Family: “If the user says the partner will work in the same city but the reply keeps alleging deliberate distance, the update did not enter discussion.”
 
-Calibration 1: “I don't remember hitting you. You accuse people. We paid your tuition.” Identify harm → denial → reverse accusation → caregiving debt. Memory does not prove absence; care costs do not answer harm.
-Calibration 2: “We never went deep; perhaps this wasn't love; it is all my fault; I wish you well.” Respect the right to end, but note the jump from unresolved communication to history rewrite and how vague blame closes fact-checking. Do not invent threats or control.
-
-Urgent means imminent harm, coerced self-harm, stalking/tracking, confinement, withheld documents, forced return, sexual force, or current child danger. Ordinary conflict is not urgent.`;
+Urgent requires imminent harm, coerced self-harm, stalking/tracking, confinement, withheld documents, forced return, sexual force, or current child danger. Ordinary conflict is not urgent.`;
 }

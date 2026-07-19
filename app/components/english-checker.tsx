@@ -21,8 +21,8 @@ const copy = {
     analyse: "Analyze with AI", analysing: "AI is reading this…", tooLong: "This is too long. Please shorten it before analysis.",
     unavailable: "Basic analysis", quota: "Deep analysis is currently unavailable.", retry: "Retry deep analysis",
     clear: "Clear this conversation", confirm: "Clear this conversation and its analysis?", cancel: "Cancel", confirmClear: "Clear",
-    working: "Analysis is running — the page is not stuck.", elapsed: "Analysing for", seconds: "seconds",
-    stages: ["Reading the whole exchange", "Finding the original issue", "Checking for contradictions", "Separating facts, advice, and pressure", "Merging repeated signals", "Deep analysis is taking longer than usual. A basic analysis will appear automatically if it times out."],
+    loadingTitle: "Reading this conversation carefully", working: "Analysis is running — the page is not stuck.", elapsed: "Analysing for", seconds: "seconds",
+    stages: ["Reading the whole exchange, not isolated lines", "Finding the original issue", "Checking for contradictions", "Separating reasonable points from pressure", "Merging repeated signals", "Deep analysis is taking longer than usual. A basic analysis will appear if it does not finish."],
   },
   zh: {
     id: "tool", eyebrow: "对话拆解", title: "把对方的话和你的回复分开看。", source: "这段对话来自",
@@ -32,22 +32,22 @@ const copy = {
     analyse: "让 AI 帮我分析", analysing: "AI 正在分析…", tooLong: "文字太长了，请删短一点再分析。",
     unavailable: "基础分析", quota: "深度分析当前不可用", retry: "重新尝试深度分析",
     clear: "清空本次内容", confirm: "清空这次输入和分析结果？", cancel: "取消", confirmClear: "清空",
-    working: "正在分析，不是页面卡住了。", elapsed: "已分析", seconds: "秒",
-    stages: ["小侦探正在读完整段", "正在找出原本讨论的事情", "正在核对前后有没有矛盾", "正在分清事实、建议和压力", "正在合并重复线索", "深度分析比平时慢一些；如果超时，会自动给出基础分析。"],
+    loadingTitle: "正在仔细读这段对话", working: "正在分析，不是页面卡住了。", elapsed: "已分析", seconds: "秒",
+    stages: ["正在读完整段，不只看单句话", "正在找出原本讨论的事情", "正在核对前后有没有矛盾", "正在分清合理部分和压力", "正在合并重复线索", "深度分析比平时慢一些；若未完成，会提供基础分析。"],
   },
 } as const;
 
 function loadingStage(elapsed: number) {
-  return elapsed < 8 ? 0 : elapsed < 16 ? 1 : elapsed < 24 ? 2 : elapsed < 32 ? 3 : elapsed < 40 ? 4 : 5;
+  return elapsed < 7 ? 0 : elapsed < 14 ? 1 : elapsed < 21 ? 2 : elapsed < 28 ? 3 : elapsed < 35 ? 4 : 5;
 }
 
-function DetectiveMark() {
-  return <svg className="analysis-detective" viewBox="0 0 180 118" role="img" aria-label="Conversation detective reading notes">
-    <path className="detective-paper" d="M15 72h48v32H15zM68 65h46v37H68zM119 73h43v30h-43z" />
-    <path className="detective-lines" d="M23 81h30M23 89h22M77 75h27M77 83h23M127 82h25M127 90h18" />
-    <path className="detective-person" d="M74 36c0-12 8-21 19-21s19 9 19 21c0 9-5 16-12 19v10H84V55c-6-3-10-10-10-19Z" />
-    <path className="detective-hat" d="M68 31h50M77 29l5-16h23l6 16" />
-    <g className="detective-glass"><circle cx="117" cy="50" r="18" /><path d="m130 63 17 18" /></g>
+function ConversationScan() {
+  return <svg className="analysis-scan" viewBox="0 0 190 96" role="img" aria-label="Conversation notes being scanned">
+    <g className="scan-paper scan-paper-back"><rect x="22" y="20" width="120" height="57" rx="10" /><path d="M38 38h54M38 48h78M38 58h62" /></g>
+    <g className="scan-paper scan-paper-middle"><rect x="34" y="13" width="122" height="60" rx="10" /><path d="M50 32h62M50 43h84M50 54h48" /></g>
+    <g className="scan-paper scan-paper-front"><rect x="47" y="23" width="122" height="60" rx="10" /><path d="M63 42h69M63 53h83M63 64h56" /><path className="scan-leaf" d="M150 68c8-8 13-6 13-6-1 7-6 11-13 11m0-5c-4-5-8-4-8-4 0 5 3 8 8 9" /></g>
+    <rect className="scan-light" x="54" y="25" width="24" height="56" rx="10" />
+    <g className="scan-lens"><circle cx="72" cy="59" r="10" /><path d="m79 66 9 9" /></g>
   </svg>;
 }
 
@@ -87,6 +87,7 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     if (!canAnalyze) { setStatus(ui.tooLong); return; }
     const currentRequest = requestId.current + 1;
     requestId.current = currentRequest;
+    abortRef.current?.abort();
     const recent = JSON.parse(sessionStorage.getItem("analysis-loading-recent") || "[]") as number[];
     setLoadingSequence(createLoadingSequence(language, recent));
     lastStoredLoadingIndex.current = -1;
@@ -124,7 +125,14 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
   }
 
   function updateContext(next: AnalysisContext) {
-    setContext(next); setAnalysis(null); setStatus("");
+    abortRef.current?.abort(); requestId.current += 1;
+    setContext(next); setAnalysis(null); setStatus(""); setLoading(false); setElapsed(0); setLoadingSequence([]);
+  }
+
+  function updateInput(kind: "other" | "mine", value: string) {
+    abortRef.current?.abort(); requestId.current += 1;
+    if (kind === "other") setOtherText(value); else setMyText(value);
+    setAnalysis(null); setStatus(""); setLoading(false); setElapsed(0); setLoadingSequence([]);
   }
 
   return <section className="english-tool text-analyzer" id={ui.id}>
@@ -133,14 +141,14 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     <span className="context-title">{ui.source}</span>
     <div className="english-context" aria-label={ui.source}>{contextOptions.map((item) => <button type="button" data-context={item.tone} className={context === item.value ? "active" : ""} onClick={() => updateContext(item.value)} key={item.value}>{context === item.value && <span aria-hidden="true">✓ </span>}{item[language]}</button>)}</div>
     <div className="textarea-grid">
-      <label><span>{ui.other}</span><textarea value={otherText} maxLength={6000} onChange={(event) => { setOtherText(event.target.value); setAnalysis(null); setStatus(""); }} placeholder={ui.otherPlaceholder} /></label>
-      <label><span>{ui.mine}</span><textarea value={myText} maxLength={3000} onChange={(event) => { setMyText(event.target.value); setAnalysis(null); setStatus(""); }} placeholder={ui.minePlaceholder} /></label>
+      <label><span>{ui.other}</span><textarea value={otherText} maxLength={6000} onChange={(event) => updateInput("other", event.target.value)} placeholder={ui.otherPlaceholder} /></label>
+      <label><span>{ui.mine}</span><textarea value={myText} maxLength={3000} onChange={(event) => updateInput("mine", event.target.value)} placeholder={ui.minePlaceholder} /></label>
     </div>
     <div className="text-meta"><span>{status}</span><span>{otherText.length} / 6000 · {myText.length} / 3000</span></div>
     <div className="analysis-actions"><button type="button" className="primary" disabled={!canAnalyze} onClick={runAnalysis}>{loading ? ui.analysing : ui.analyse}</button><button type="button" className="clear-conversation" onClick={requestClear}>{ui.clear}</button></div>
     {loading && <div className="analysis-loading" aria-live="polite">
-      <DetectiveMark />
-      <div className="analysis-loading-copy"><strong>{ui.stages[loadingStage(elapsed)]}</strong><p>{loadingSequence[loadingIndex]?.text}</p><small>{ui.elapsed} {elapsed} {ui.seconds}</small><b>{ui.working}</b></div>
+      <ConversationScan />
+      <div className="analysis-loading-copy"><strong>{ui.loadingTitle}</strong><small className="analysis-loading-stage">{ui.stages[loadingStage(elapsed)]}</small><p>{loadingSequence[loadingIndex]?.text}</p><small>{ui.elapsed} {elapsed} {ui.seconds}</small>{elapsed >= 6 && <b>{ui.working}</b>}</div>
       <div className="analysis-loading-bar" aria-hidden="true"><span /></div>
     </div>}
     {confirmClear && <div className="clear-confirm" role="alertdialog" aria-label={ui.confirm}><p>{ui.confirm}</p><div><button type="button" onClick={() => setConfirmClear(false)}>{ui.cancel}</button><button type="button" className="confirm-clear" onClick={clearConversation}>{ui.confirmClear}</button></div></div>}

@@ -1,7 +1,12 @@
 export type AnalysisLanguage = "en" | "zh";
 export type AnalysisContext = "relationship" | "family" | "workplace" | "friendship";
 export type AnalysisMode = "ai" | "local";
-export type AnalysisStatusReason = "success" | "quota" | "config" | "busy" | "timeout" | "invalid_output";
+export type AnalysisStatusReason =
+  | "success" | "quota" | "config" | "busy" | "timeout" | "invalid_output"
+  | "runtime_config_missing" | "upstream_400" | "upstream_401" | "upstream_402"
+  | "upstream_403" | "upstream_408" | "upstream_429" | "upstream_no_provider"
+  | "upstream_timeout" | "invalid_output_empty" | "invalid_output_truncated"
+  | "invalid_output_json_syntax" | "invalid_output_schema" | "invalid_output_refusal" | "unknown";
 export type Confidence = "高" | "中" | "低";
 export type ConcernSeverity = "notice" | "pressure" | "high";
 export type NextStepType = "no_reply" | "observe" | "clarify" | "respond" | "safety";

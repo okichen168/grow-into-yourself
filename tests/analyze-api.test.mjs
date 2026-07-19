@@ -21,17 +21,12 @@ function clearConfig() {
 
 function aiFixture(overrides = {}) {
   return {
-    mode: "ai", statusReason: "success", overview: "The practical question turns into a broader demand about responsibility and compliance.",
-    evidenceBoundary: { observed: ["A request was made."], likely: ["The wording applies pressure."], uncertain: ["Motive cannot be confirmed."] },
-    interactionPattern: { title: "Question, blame, withdrawal", steps: [{ action: "A question is raised", evidence: ["What happened?"] }, { action: "Blame follows", evidence: ["This is your fault"] }, { action: "Discussion closes", evidence: ["Nothing more to say"] }], explanation: "The original issue is not answered." },
-    whatTheyArePushing: [{ point: "Accept sole responsibility", evidence: ["This is your fault"], confidence: "中" }], reasonableParts: [],
-    concerningParts: [{ label: "Blame shift", explanation: "The whole conflict is assigned to one person.", evidence: ["This is your fault"], severity: "pressure", confidence: "中" }],
-    keyAnnotations: [
-      { quotes: ["This is your fault"], tags: ["blame"], keyPoint: "The statement assigns a total conclusion without naming an action.", grounding: "A disagreement can involve more than one person's choices.", uncertainty: "The wider history is unknown." },
-      { quotes: ["Nothing more to say"], tags: ["withdrawal"], keyPoint: "The exit closes discussion before the issue is examined.", grounding: "An ended discussion is not a resolved one.", uncertainty: "This may still be a temporary pause." },
-    ],
-    selfGrounding: ["Separate the concrete event from a total judgment.", "No immediate reply is required."], nextStepOptions: [],
-    risk: { level: "低", reasons: [], urgentWarning: "" }, ...overrides,
+    summary: "The practical question turns into a broader demand about responsibility.", coreShift: "The original issue is displaced by a total judgment.",
+    interactionSteps: [{ title: "Question", evidence: "What happened?" }, { title: "Blame", evidence: "This is your fault" }, { title: "Exit", evidence: "Nothing more to say" }],
+    pushes: [{ title: "Accept blame", explanation: "One person is assigned sole responsibility.", evidence: "This is your fault" }], reasonableParts: [],
+    concerns: [{ title: "Blame shift", explanation: "A total conclusion replaces a specific action.", evidence: "This is your fault", severity: "medium" }],
+    annotations: [{ quotes: ["Nothing more to say"], insight: "The exit closes discussion before the issue is examined.", tags: ["withdrawal"], grounding: "An ended discussion is not a resolved one." }],
+    selfGrounding: ["Separate the event from the judgment."], nextSteps: [], risk: { level: "低", reasons: [] }, ...overrides,
   };
 }
 
@@ -40,7 +35,7 @@ test("local structured analysis", async (t) => {
   await t.test("missing configuration returns useful local content", async () => {
     const started = performance.now();
     const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: cases.familyMoney.context });
-    assert.equal(data.mode, "local"); assert.equal(data.analysis.mode, "local"); assert.equal(data.analysis.statusReason, "config"); assert.ok(data.analysis.overview.length > 30); assert.ok(data.analysis.keyAnnotations.length > 0);
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.mode, "local"); assert.equal(data.analysis.statusReason, "runtime_config_missing"); assert.ok(data.analysis.overview.length > 30); assert.ok(data.analysis.keyAnnotations.length > 0);
     assert.ok(performance.now() - started < 2000);
   });
   await t.test("missing configuration never calls the external analysis endpoint", async (t) => {
@@ -68,8 +63,18 @@ test("local structured analysis", async (t) => {
     assert.match(text, /交流|关系/); assert.doesNotMatch(text, /羞辱|威胁|孝顺|经济控制/); assert.equal(data.analysis.risk.level, "低");
   });
   await t.test("premarital planning preserves reasonable and unequal parts", async () => {
-    const { data } = await analyze({ otherText: cases.premarital.text, language: "zh", context: "relationship" }); const text = JSON.stringify(data.analysis);
-    assert.ok(data.analysis.reasonableParts.length > 0); assert.match(text, /生育|双重|不对等|双向/); assert.notEqual(data.analysis.risk.level, "紧急");
+    const { data } = await analyze({ otherText: cases.premarital.text, myText: cases.premarital.myText, language: "zh", context: "relationship" }); const text = JSON.stringify(data.analysis);
+    assert.ok(data.analysis.reasonableParts.length > 0); assert.match(text, /消费|定义权/); assert.match(text, /生育|议题错位/); assert.match(text, /社交|朋友圈/); assert.match(text, /平等|双向/); assert.match(text, /彩礼|产权|购房/); assert.match(text, /补车|资源预先/); assert.match(text, /三六分|无偿|照护/); assert.match(text, /个人资产|不开心/); assert.doesNotMatch(text, /白眼狼|没有家|服从惩罚/); assert.notEqual(data.analysis.risk.level, "紧急");
+  });
+  await t.test("sequential family then breakup and finance then breakup do not leak content", async () => {
+    await analyze({ otherText: cases.familyBelonging.text, myText: cases.familyBelonging.myText, language: "zh", context: "family" });
+    const firstBreakup = await analyze({ otherText: cases.respectfulBreakup.text, language: "zh", context: "relationship" });
+    await analyze({ otherText: cases.premarital.text, myText: cases.premarital.myText, language: "zh", context: "relationship" });
+    const secondBreakup = await analyze({ otherText: cases.respectfulBreakup.text, language: "zh", context: "relationship" });
+    for (const result of [firstBreakup.data, secondBreakup.data]) {
+      const text = JSON.stringify(result.analysis); assert.match(text, /结束|关系退出|交流/); assert.match(text, /有权结束/); assert.match(text, /逻辑跨越|历史/);
+      assert.doesNotMatch(text, /工作地点|住处|孝顺|白眼狼|养育债|彩礼|三六分|支出比例|服从压力/);
+    }
   });
   await t.test("family belonging case notices ignored correction and escalation", async () => {
     const { data } = await analyze({ otherText: cases.familyBelonging.text, myText: cases.familyBelonging.myText, language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);
@@ -103,20 +108,25 @@ test("AI request and fallback", async (t) => {
   await t.test("strict request returns validated AI structure without exposing configuration", async (t) => {
     let body; let calls = 0; t.mock.method(globalThis, "fetch", async (_url, init) => { calls += 1; body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
     const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" });
-    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 1100); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput" }); assert.equal(body.provider.zdr, undefined); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.overview.maxLength, 180); assert.equal(body.response_format.json_schema.schema.properties.interactionPattern.properties.steps.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.concerningParts.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.keyAnnotations.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.keyAnnotations.items.properties.keyPoint.maxLength, 120); assert.ok(body.messages[0].content.length < 5000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 1400); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput" }); assert.equal(body.provider.zdr, undefined); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.summary.maxLength, 180); assert.equal(body.response_format.json_schema.schema.properties.interactionSteps.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.concerns.maxItems, 4); assert.equal(body.response_format.json_schema.schema.properties.annotations.maxItems, 5); assert.equal(data.analysis.evidenceBoundary.likely[0], aiFixture().coreShift); assert.ok(body.messages[0].content.length < 7000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+  });
+  await t.test("content string, text array, object, and fenced JSON all parse", async (t) => {
+    const formats = [JSON.stringify(aiFixture()), [{ type: "text", text: JSON.stringify(aiFixture()) }], aiFixture(), `\`\`\`json\n${JSON.stringify(aiFixture())}\n\`\`\``];
+    let index = 0; t.mock.method(globalThis, "fetch", async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: formats[index++] } }] }));
+    for (let count = 0; count < formats.length; count += 1) { const { data } = await analyze({ otherText: `Example ${count}`, language: "en" }); assert.equal(data.mode, "ai"); }
   });
   await t.test("HTTP 429 becomes quota-labelled local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 429 })); const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
-    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "quota"); assert.ok(data.analysis.keyAnnotations.length > 0);
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "upstream_429"); assert.ok(data.analysis.keyAnnotations.length > 0);
   });
-  await t.test("invalid model output becomes local rather than a template error", async (t) => {
+  await t.test("invalid output classifications stay distinct", async (t) => {
     t.mock.method(globalThis, "fetch", async () => Response.json({ choices: [{ message: { content: "not json" } }] })); const { data } = await analyze({ otherText: cases.harmDenial.text, language: "zh", context: "family" });
-    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "invalid_output");
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "invalid_output_json_syntax");
   });
   await t.test("timeout errors immediately switch to local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => { throw new DOMException("timed out", "AbortError"); });
     const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
-    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout");
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "upstream_timeout");
   });
   clearConfig();
 });
@@ -128,8 +138,10 @@ test("loading experience stays client-only and bounded", async () => {
   const cssSource = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const chineseMessages = [...loadingSource.matchAll(/^\s*\["([^"]+)",\s*"[^"]+"\],?$/gm)].map((match) => match[1]);
   assert.ok(chineseMessages.length >= 30); assert.equal(new Set(chineseMessages).size, chineseMessages.length); assert.doesNotMatch(loadingSource, /乳腺增生|必须离开|一定在操控/);
-  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /45_000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /analysis-loading-messages/);
+  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /45_000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /analysis-loading-messages/);
   assert.equal((checkerSource.match(/fetch\("\/api\/analyze"/g) || []).length, 1); assert.doesNotMatch(checkerSource, /ANALYSIS_LOADING_MESSAGES.*JSON\.stringify/s);
+  assert.doesNotMatch(checkerSource, /DetectiveMark|detective-person|detective-hat/); assert.match(checkerSource, /ConversationScan|scan-paper|scan-light/);
+  assert.match(checkerSource, /requestId\.current !== currentRequest/); assert.match(checkerSource, /setAnalysis\(null\)/); assert.match(resultSource, /analysis-mode-banner/); assert.match(resultSource, /深度分析暂未完成/);
   assert.match(resultSource, /analysis\.keyAnnotations\.length > 0/); assert.match(resultSource, /analysis\.nextStepOptions\.length > 0/); assert.match(cssSource, /textarea::placeholder[^}]+font-style:italic/);
   assert.match(cssSource, /prefers-reduced-motion/); assert.match(cssSource, /analysis-loading/);
 });

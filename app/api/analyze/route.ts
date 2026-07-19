@@ -8,8 +8,6 @@ import {
   type AnalysisContext,
   type AnalysisLanguage,
   type AnalysisStatusReason,
-  type Confidence,
-  type ConcernSeverity,
   type NextStepType,
 } from "../../lib/analyze-shared";
 
@@ -18,29 +16,34 @@ export const runtime = "edge";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
-const confidenceValues: Confidence[] = ["高", "中", "低"];
-const severityValues: ConcernSeverity[] = ["notice", "pressure", "high"];
-const nextStepValues: NextStepType[] = ["no_reply", "observe", "clarify", "respond", "safety"];
-
-const stringArray = (maxItems: number) => ({ type: "array", maxItems, items: { type: "string" } });
-const analysisSchema = {
+const compactString = (maxLength: number) => ({ type: "string", maxLength });
+const compactStringArray = (maxItems: number, maxLength = 90) => ({ type: "array", maxItems, items: compactString(maxLength) });
+const compactAnalysisSchema = {
   type: "object", additionalProperties: false,
-  required: ["mode", "statusReason", "overview", "evidenceBoundary", "interactionPattern", "whatTheyArePushing", "reasonableParts", "concerningParts", "keyAnnotations", "selfGrounding", "nextStepOptions", "risk"],
+  required: ["summary", "coreShift", "interactionSteps", "pushes", "reasonableParts", "concerns", "annotations", "selfGrounding", "nextSteps", "risk"],
   properties: {
-    mode: { type: "string", const: "ai" }, statusReason: { type: "string", const: "success" }, overview: { type: "string", maxLength: 180 },
-    evidenceBoundary: { type: "object", additionalProperties: false, required: ["observed", "likely", "uncertain"], properties: { observed: stringArray(8), likely: stringArray(8), uncertain: stringArray(8) } },
-    interactionPattern: { type: "object", additionalProperties: false, required: ["title", "steps", "explanation"], properties: {
-      title: { type: "string" }, explanation: { type: "string" }, steps: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["action", "evidence"], properties: { action: { type: "string" }, evidence: stringArray(3) } } },
-    } },
-    whatTheyArePushing: { type: "array", maxItems: 6, items: { type: "object", additionalProperties: false, required: ["point", "evidence", "confidence"], properties: { point: { type: "string" }, evidence: stringArray(3), confidence: { type: "string", enum: confidenceValues } } } },
-    reasonableParts: stringArray(6),
-    concerningParts: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["label", "explanation", "evidence", "severity", "confidence"], properties: { label: { type: "string" }, explanation: { type: "string" }, evidence: stringArray(4), severity: { type: "string", enum: severityValues }, confidence: { type: "string", enum: confidenceValues } } } },
-    keyAnnotations: { type: "array", minItems: 2, maxItems: 5, items: { type: "object", additionalProperties: false, required: ["quotes", "tags", "keyPoint", "grounding", "uncertainty"], properties: { quotes: stringArray(4), tags: stringArray(3), keyPoint: { type: "string", maxLength: 120 }, grounding: { type: "string" }, uncertainty: { type: "string" } } } },
-    selfGrounding: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
-    nextStepOptions: { type: "array", maxItems: 3, items: { type: "object", additionalProperties: false, required: ["type", "title", "reason", "message"], properties: { type: { type: "string", enum: nextStepValues }, title: { type: "string" }, reason: { type: "string" }, message: { type: "string" } } } },
-    risk: { type: "object", additionalProperties: false, required: ["level", "reasons", "urgentWarning"], properties: { level: { type: "string", enum: ["低", "中", "高", "紧急"] }, reasons: stringArray(6), urgentWarning: { type: "string" } } },
+    summary: compactString(180), coreShift: compactString(120),
+    interactionSteps: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["title", "evidence"], properties: { title: compactString(18), evidence: compactString(80) } } },
+    pushes: { type: "array", maxItems: 3, items: { type: "object", additionalProperties: false, required: ["title", "explanation", "evidence"], properties: { title: compactString(40), explanation: compactString(120), evidence: compactString(80) } } },
+    reasonableParts: { type: "array", maxItems: 3, items: { type: "object", additionalProperties: false, required: ["title", "explanation"], properties: { title: compactString(40), explanation: compactString(120) } } },
+    concerns: { type: "array", maxItems: 4, items: { type: "object", additionalProperties: false, required: ["title", "explanation", "evidence", "severity"], properties: { title: compactString(40), explanation: compactString(120), evidence: compactString(80), severity: { type: "string", enum: ["low", "medium", "high"] } } } },
+    annotations: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["quotes", "insight", "tags", "grounding"], properties: { quotes: compactStringArray(2, 70), insight: compactString(150), tags: compactStringArray(2, 18), grounding: compactString(90) } } },
+    selfGrounding: compactStringArray(3, 100),
+    nextSteps: { type: "array", maxItems: 3, items: { type: "object", additionalProperties: false, required: ["title", "reason"], properties: { title: compactString(40), reason: compactString(120) } } },
+    risk: { type: "object", additionalProperties: false, required: ["level", "reasons"], properties: { level: { type: "string", enum: ["低", "中", "高", "紧急"] }, reasons: compactStringArray(3, 100) } },
   },
 } as const;
+
+type CompactAnalysis = {
+  summary: string; coreShift: string;
+  interactionSteps: Array<{ title: string; evidence: string }>;
+  pushes: Array<{ title: string; explanation: string; evidence: string }>;
+  reasonableParts: Array<{ title: string; explanation: string }>;
+  concerns: Array<{ title: string; explanation: string; evidence: string; severity: "low" | "medium" | "high" }>;
+  annotations: Array<{ quotes: string[]; insight: string; tags: string[]; grounding: string }>;
+  selfGrounding: string[]; nextSteps: Array<{ title: string; reason: string }>;
+  risk: { level: "低" | "中" | "高" | "紧急"; reasons: string[] };
+};
 
 function clientAddress(request: Request) {
   return request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -57,35 +60,70 @@ function contextLabel(context: AnalysisContext, language: AnalysisLanguage) {
   return values[context][language === "zh" ? 0 : 1];
 }
 
-function strings(value: unknown, max = 20) {
+function cleanString(value: unknown, maxLength: number) { return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : null; }
+function cleanStrings(value: unknown, maxItems: number, maxLength: number, allowEmpty = true) {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) return null;
-  return value.map((item) => item.trim()).filter(Boolean).slice(0, max);
+  const result = value.map((item) => item.trim().slice(0, maxLength)).filter(Boolean).slice(0, maxItems);
+  return allowEmpty || result.length ? result : null;
 }
+function cleanObjects(value: unknown, maxItems: number) { return Array.isArray(value) ? value.slice(0, maxItems) : null; }
 
-function objects(value: unknown, max: number) { return Array.isArray(value) ? value.slice(0, max) : null; }
-
-function parseAnalysis(value: unknown, urgent: boolean): AiAnalysis | null {
+function parseCompact(value: unknown): CompactAnalysis | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (row.mode !== "ai" || row.statusReason !== "success" || typeof row.overview !== "string" || !row.overview.trim()) return null;
-  const boundary = row.evidenceBoundary as Record<string, unknown> | null;
-  const pattern = row.interactionPattern as Record<string, unknown> | null;
-  if (!boundary || !pattern) return null;
-  const observed = strings(boundary.observed, 8); const likely = strings(boundary.likely, 8); const uncertain = strings(boundary.uncertain, 8);
-  const stepsRaw = objects(pattern.steps, 5);
-  if (!observed || !likely || !uncertain || typeof pattern.title !== "string" || typeof pattern.explanation !== "string" || !stepsRaw) return null;
-  const steps = stepsRaw.map((entry) => { const item = entry as Record<string, unknown>; const evidence = strings(item?.evidence, 3); return item && typeof item.action === "string" && evidence ? { action: item.action.trim(), evidence } : null; });
-  const pushingRaw = objects(row.whatTheyArePushing, 6); const concernsRaw = objects(row.concerningParts, 5); const annotationsRaw = objects(row.keyAnnotations, 5); const nextRaw = objects(row.nextStepOptions, 3);
-  const reasonableParts = strings(row.reasonableParts, 6); const selfGrounding = strings(row.selfGrounding, 4);
-  if (!pushingRaw || !concernsRaw || !annotationsRaw || !nextRaw || !reasonableParts || !selfGrounding || steps.some((item) => !item)) return null;
-  const whatTheyArePushing = pushingRaw.map((entry) => { const item = entry as Record<string, unknown>; const evidence = strings(item?.evidence, 3); return item && typeof item.point === "string" && evidence && confidenceValues.includes(item.confidence as Confidence) ? { point: item.point.trim(), evidence, confidence: item.confidence as Confidence } : null; });
-  const concerningParts = concernsRaw.map((entry) => { const item = entry as Record<string, unknown>; const evidence = strings(item?.evidence, 4); return item && typeof item.label === "string" && typeof item.explanation === "string" && evidence && severityValues.includes(item.severity as ConcernSeverity) && confidenceValues.includes(item.confidence as Confidence) ? { label: item.label.trim(), explanation: item.explanation.trim(), evidence, severity: item.severity as ConcernSeverity, confidence: item.confidence as Confidence } : null; });
-  const keyAnnotations = annotationsRaw.map((entry) => { const item = entry as Record<string, unknown>; const quotes = strings(item?.quotes, 4); const tags = strings(item?.tags, 3); return item && quotes?.length && tags && typeof item.keyPoint === "string" && typeof item.grounding === "string" && typeof item.uncertainty === "string" ? { quotes, tags, keyPoint: item.keyPoint.trim(), grounding: item.grounding.trim(), uncertainty: item.uncertainty.trim() } : null; });
-  const nextStepOptions = nextRaw.map((entry) => { const item = entry as Record<string, unknown>; return item && nextStepValues.includes(item.type as NextStepType) && typeof item.title === "string" && typeof item.reason === "string" && typeof item.message === "string" ? { type: item.type as NextStepType, title: item.title.trim(), reason: item.reason.trim(), message: item.message.trim() } : null; });
-  const risk = row.risk as Record<string, unknown> | null; const reasons = risk ? strings(risk.reasons, 6) : null;
-  if (whatTheyArePushing.some((item) => !item) || concerningParts.some((item) => !item) || keyAnnotations.length < 2 || keyAnnotations.some((item) => !item) || nextStepOptions.some((item) => !item) || selfGrounding.length < 2 || !risk || !reasons || !["低", "中", "高", "紧急"].includes(String(risk.level)) || typeof risk.urgentWarning !== "string") return null;
-  const riskLevel = urgent ? "紧急" : risk.level === "紧急" ? "高" : String(risk.level);
-  return dedupeAnalysis({ mode: "ai", statusReason: "success", overview: row.overview.trim(), evidenceBoundary: { observed, likely, uncertain }, interactionPattern: { title: pattern.title.trim(), steps: steps as AiAnalysis["interactionPattern"]["steps"], explanation: pattern.explanation.trim() }, whatTheyArePushing: whatTheyArePushing as AiAnalysis["whatTheyArePushing"], reasonableParts, concerningParts: concerningParts as AiAnalysis["concerningParts"], keyAnnotations: keyAnnotations as AiAnalysis["keyAnnotations"], selfGrounding, nextStepOptions: nextStepOptions as AiAnalysis["nextStepOptions"], risk: { level: riskLevel, reasons, urgentWarning: urgent ? (risk.urgentWarning.trim() || "文字中出现明确的现实危险信号，请优先确认人身安全。") : "" } });
+  const summary = cleanString(row.summary, 180); const coreShift = cleanString(row.coreShift, 120);
+  const steps = cleanObjects(row.interactionSteps, 5); const pushes = cleanObjects(row.pushes, 3); const reasonable = cleanObjects(row.reasonableParts, 3);
+  const concerns = cleanObjects(row.concerns, 4); const annotations = cleanObjects(row.annotations, 5); const next = cleanObjects(row.nextSteps, 3);
+  const grounding = cleanStrings(row.selfGrounding, 3, 100); const risk = row.risk as Record<string, unknown> | null;
+  if (!summary || !coreShift || !steps || !pushes || !reasonable || !concerns || !annotations || !next || !grounding || !risk) return null;
+  const interactionSteps = steps.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const evidence = cleanString(item?.evidence, 80); return title && evidence ? { title, evidence } : null; });
+  const parsedPushes = pushes.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 40); const explanation = cleanString(item?.explanation, 120); const evidence = cleanString(item?.evidence, 80); return title && explanation && evidence ? { title, explanation, evidence } : null; });
+  const reasonableParts = reasonable.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 40); const explanation = cleanString(item?.explanation, 120); return title && explanation ? { title, explanation } : null; });
+  const parsedConcerns = concerns.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 40); const explanation = cleanString(item?.explanation, 120); const evidence = cleanString(item?.evidence, 80); return title && explanation && evidence && ["low", "medium", "high"].includes(String(item.severity)) ? { title, explanation, evidence, severity: item.severity as "low" | "medium" | "high" } : null; });
+  const parsedAnnotations = annotations.map((entry) => { const item = entry as Record<string, unknown>; const quotes = cleanStrings(item?.quotes, 2, 70, false); const tags = cleanStrings(item?.tags, 2, 18); const insight = cleanString(item?.insight, 150); const note = cleanString(item?.grounding, 90); return quotes && tags && insight && note ? { quotes, tags, insight, grounding: note } : null; });
+  const nextSteps = next.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 40); const reason = cleanString(item?.reason, 120); return title && reason ? { title, reason } : null; });
+  const reasons = cleanStrings(risk.reasons, 3, 100);
+  if ([...interactionSteps, ...parsedPushes, ...reasonableParts, ...parsedConcerns, ...parsedAnnotations, ...nextSteps].some((item) => !item) || !reasons || !["低", "中", "高", "紧急"].includes(String(risk.level))) return null;
+  return { summary, coreShift, interactionSteps: interactionSteps as CompactAnalysis["interactionSteps"], pushes: parsedPushes as CompactAnalysis["pushes"], reasonableParts: reasonableParts as CompactAnalysis["reasonableParts"], concerns: parsedConcerns as CompactAnalysis["concerns"], annotations: parsedAnnotations as CompactAnalysis["annotations"], selfGrounding: grounding, nextSteps: nextSteps as CompactAnalysis["nextSteps"], risk: { level: risk.level as CompactAnalysis["risk"]["level"], reasons } };
+}
+
+function nextStepType(title: string, reason: string): NextStepType {
+  const text = `${title} ${reason}`;
+  if (/不回复|暂停|沉默|pause|no reply/i.test(text)) return "no_reply";
+  if (/核对|澄清|具体|check|clarif/i.test(text)) return "clarify";
+  if (/安全|危险|safety|danger/i.test(text)) return "safety";
+  return "observe";
+}
+
+function mapCompact(value: CompactAnalysis, urgent: boolean): AiAnalysis {
+  const riskLevel = urgent ? "紧急" : value.risk.level === "紧急" ? "高" : value.risk.level;
+  return dedupeAnalysis({
+    mode: "ai", statusReason: "success", overview: value.summary,
+    evidenceBoundary: { observed: [], likely: [value.coreShift], uncertain: [] },
+    interactionPattern: { title: value.coreShift, steps: value.interactionSteps.map((item) => ({ action: item.title, evidence: [item.evidence] })), explanation: value.coreShift },
+    whatTheyArePushing: value.pushes.map((item) => ({ point: `${item.title}：${item.explanation}`, evidence: [item.evidence], confidence: "中" })),
+    reasonableParts: value.reasonableParts.map((item) => `${item.title}：${item.explanation}`),
+    concerningParts: value.concerns.map((item) => ({ label: item.title, explanation: item.explanation, evidence: [item.evidence], severity: item.severity === "high" ? "high" : item.severity === "medium" ? "pressure" : "notice", confidence: item.severity === "low" ? "中" : "高" })),
+    keyAnnotations: value.annotations.map((item) => ({ quotes: item.quotes, tags: item.tags, keyPoint: item.insight, grounding: item.grounding, uncertainty: "" })),
+    selfGrounding: value.selfGrounding,
+    nextStepOptions: value.nextSteps.map((item) => ({ type: nextStepType(item.title, item.reason), title: item.title, reason: item.reason, message: "" })),
+    risk: { level: riskLevel, reasons: value.risk.reasons, urgentWarning: urgent ? "文字中出现明确的现实危险信号，请优先确认人身安全。" : "" },
+  });
+}
+
+function extractContent(value: unknown): unknown {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fenced ? fenced[1].trim() : trimmed;
+  }
+  if (Array.isArray(value)) return value.map((part) => part && typeof part === "object" && "text" in part ? String((part as { text?: unknown }).text ?? "") : "").join("").trim();
+  return value && typeof value === "object" ? value : null;
+}
+
+function statusForHttp(status: number): AnalysisStatusReason {
+  if (status === 400) return "upstream_400"; if (status === 401) return "upstream_401"; if (status === 402) return "upstream_402"; if (status === 403) return "upstream_403";
+  if (status === 408) return "upstream_408"; if (status === 429) return "upstream_429"; if (status === 404 || status === 503) return "upstream_no_provider"; return "unknown";
 }
 
 function localResponse(otherText: string, myText: string, language: AnalysisLanguage, context: AnalysisContext, statusReason: AnalysisStatusReason) {
@@ -98,9 +136,9 @@ async function callAnalysisApi(url: string, key: string, model: string, messages
     method: "POST", signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model, temperature: 0.2, max_tokens: 1100, stream: false, messages,
+      model, temperature: 0.2, max_tokens: 1400, stream: false, messages,
       provider: { require_parameters: true, data_collection: "deny", sort: "throughput" },
-      response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: analysisSchema } },
+      response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: compactAnalysisSchema } },
     }),
   });
 }
@@ -116,7 +154,7 @@ export async function POST(request: Request) {
   if (isRateLimited(request)) return localResponse(otherText, myText, language, context, "quota");
 
   const apiKey = process.env.ANALYSIS_API_KEY; const apiUrl = process.env.ANALYSIS_API_URL; const model = process.env.ANALYSIS_MODEL;
-  if (!apiKey || !apiUrl || !model || process.env.ANALYSIS_STRICT_PRIVACY !== "true") return localResponse(otherText, myText, language, context, "config");
+  if (!apiKey || !apiUrl || !model || process.env.ANALYSIS_STRICT_PRIVACY !== "true") return localResponse(otherText, myText, language, context, "runtime_config_missing");
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 40_000);
   try {
     const messages = [
@@ -124,14 +162,21 @@ export async function POST(request: Request) {
       { role: "user", content: `Language: ${language}. Context: ${contextLabel(context, language)}.\nOther person's words:\n${otherText}\n\nUser's words or draft:\n${myText || "(none)"}\nReturn the exact structured analysis. Quotes must be verbatim from the supplied text.` },
     ];
     const response = await callAnalysisApi(apiUrl, apiKey, model, messages, controller.signal);
-    if (!response.ok) return localResponse(otherText, myText, language, context, response.status === 429 ? "quota" : response.status >= 500 ? "busy" : "invalid_output");
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> }; const content = data.choices?.[0]?.message?.content;
-    if (!content) return localResponse(otherText, myText, language, context, "invalid_output");
-    let parsed: unknown; try { parsed = JSON.parse(content); } catch { return localResponse(otherText, myText, language, context, "invalid_output"); }
-    const analysis = parseAnalysis(parsed, hasExplicitUrgentSignal(`${otherText}\n${myText}`));
-    if (!analysis) return localResponse(otherText, myText, language, context, "invalid_output");
+    if (!response.ok) return localResponse(otherText, myText, language, context, statusForHttp(response.status));
+    const data = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }> };
+    const choice = data.choices?.[0];
+    if (!choice) return localResponse(otherText, myText, language, context, "invalid_output_empty");
+    if (choice.message?.refusal) return localResponse(otherText, myText, language, context, "invalid_output_refusal");
+    if (choice.finish_reason === "length") return localResponse(otherText, myText, language, context, "invalid_output_truncated");
+    const content = extractContent(choice.message?.content);
+    if (!content || content === "") return localResponse(otherText, myText, language, context, "invalid_output_empty");
+    let parsed: unknown = content;
+    if (typeof content === "string") { try { parsed = JSON.parse(content); } catch { return localResponse(otherText, myText, language, context, "invalid_output_json_syntax"); } }
+    const compact = parseCompact(parsed);
+    if (!compact) return localResponse(otherText, myText, language, context, "invalid_output_schema");
+    const analysis = mapCompact(compact, hasExplicitUrgentSignal(`${otherText}\n${myText}`));
     return Response.json({ mode: "ai", analysis, fallback: false });
   } catch (error) {
-    return localResponse(otherText, myText, language, context, error instanceof DOMException && error.name === "AbortError" ? "timeout" : "busy");
+    return localResponse(otherText, myText, language, context, error instanceof DOMException && error.name === "AbortError" ? "upstream_timeout" : "unknown");
   } finally { clearTimeout(timeout); }
 }

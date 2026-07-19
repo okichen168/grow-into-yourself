@@ -258,6 +258,92 @@ function benchmarkHarmDenialAnalysis(sentences: string[], language: AnalysisLang
   });
 }
 
+type LocalCase = "premarital" | "breakup" | "family" | "general";
+
+function classifyCase(otherText: string, myText: string, context: AnalysisContext): LocalCase {
+  const full = `${otherText}\n${myText}`;
+  const breakup = [/(不合适|结束关系|不能继续)/, /(不是爱|或许.{0,4}爱)/, /(祝你.{0,4}幸福|删除.{0,4}(联系|方式))/, /(交流不深|无法深入了解)/].filter((rule) => rule.test(full)).length;
+  const premarital = [/(支出|高消费|生存需要)/, /(生育|彩礼)/, /(买房|买车|共同财产)/, /(三六分|按比例)/, /(朋友圈|婚前.{0,6}(资产|房|车))/, /(男女平等|小家)/].filter((rule) => rule.test(full)).length;
+  const family = [/(白眼狼|没有家)/, /(养育|良心|父母)/, /(听我的|后果自负)/, /(不爱家|孝顺|亲人)/].filter((rule) => rule.test(full)).length;
+  if (breakup >= 2) return "breakup";
+  if (premarital >= 3) return "premarital";
+  if (context === "family" && family >= 2) return "family";
+  return "general";
+}
+
+function premaritalAnalysis(sentences: string[], mySentences: string[], language: AnalysisLanguage, statusReason: AnalysisStatusReason): AiAnalysis {
+  const all = [...sentences, ...mySentences];
+  const spending = unique(all.filter((line) => /(生存需要|高消费|经济账|合理规划|自己的钱)/.test(line))).slice(0, 2);
+  const birth = unique(all.filter((line) => /(生育|身体|职业|机会成本|男生也很辛苦)/.test(line))).slice(0, 2);
+  const social = unique(all.filter((line) => /(朋友|陪我|社交)/.test(line))).slice(0, 2);
+  const property = unique(all.filter((line) => /(彩礼|购房|买房|产权|个人房产)/.test(line))).slice(0, 2);
+  const car = unique(all.filter((line) => /(买车|一辆车|补一些钱)/.test(line))).slice(0, 2);
+  const ratio = unique(all.filter((line) => /(三六分|按比例|女方不能完全不支出|无偿|照护)/.test(line))).slice(0, 2);
+  const personal = unique(mySentences.filter((line) => /(自己的钱|个人房产|婚前|不开心|明确反对)/.test(line))).slice(0, 2);
+  const zh = language === "zh";
+  return dedupeAnalysis({
+    mode: "local", statusReason,
+    overview: zh ? "这不是单一的消费争议，而是一组婚前规则：预算、生育、社交、彩礼、购房、车辆、支出比例和个人资产都被放进同一套安排。共同规划本身合理，关键要逐项核对规则解释权和实际成本是否双向。" : "This is a set of premarital rules about budgets, pregnancy, friends, property, vehicles, contributions, and personal assets. Planning can be reasonable; the key question is whether rule-making power and real costs work both ways.",
+    evidenceBoundary: { observed: [], likely: [zh ? "讨论的重点不是要不要规划，而是谁定义合理、哪些成本被计算，以及个人资源是否仍由本人决定。" : "The issue is not whether to plan, but who defines reasonable, which costs count, and whether personal resources remain individually decided."], uncertain: personal.length ? [zh ? "用户担心对方会不开心，但原文没有显示对方已经明确禁止购买个人房产或车辆。" : "The user anticipates displeasure, but the text does not show an explicit ban on personal property or a vehicle."] : [] },
+    interactionPattern: { title: zh ? "平等与共同规划需要落实到每项规则" : "Equality and shared planning need item-by-item terms", steps: [
+      { action: zh ? "一方定义合理消费" : "One side defines reasonable spending", evidence: spending.slice(0, 1) },
+      { action: zh ? "生育成本被另一种辛苦带开" : "Pregnancy costs are displaced by another hardship", evidence: birth.slice(0, 1) },
+      { action: zh ? "社交融合先以一方圈子为中心" : "Social integration starts with one person's circle", evidence: social.slice(0, 1) },
+      { action: zh ? "资源被预先放进共同或个人安排" : "Resources are pre-allocated into shared or personal plans", evidence: unique([...property, ...car]).slice(0, 1) },
+      { action: zh ? "个人决定开始受预期情绪影响" : "Personal decisions are shaped by anticipated displeasure", evidence: personal.slice(0, 1) },
+    ].filter((step) => step.evidence.length), explanation: zh ? "口头上的平等，需要和消费、生育、社交、产权及个人资产的具体安排逐项对照。" : "Equality language needs to match the actual arrangements for spending, pregnancy, friends, ownership, and personal assets." },
+    whatTheyArePushing: [
+      { point: zh ? "接受由对方先提出的消费与支出框架" : "Accept the spending framework proposed by the other person", evidence: spending.slice(0, 1), confidence: "中" },
+      { point: zh ? "把未来资源纳入购房、车辆和比例支出" : "Include future resources in property, vehicle, and contribution plans", evidence: unique([...property, ...car, ...ratio]).slice(0, 2), confidence: "中" },
+      { point: zh ? "先进入对方的社交安排" : "Enter the other person's social arrangements first", evidence: social.slice(0, 1), confidence: "中" },
+    ].filter((item) => item.evidence.length),
+    reasonableParts: [zh ? "婚前讨论共同预算、住房、双方父母和支出比例，本身是负责任的规划。" : "Discussing budgets, housing, both families, and contribution ratios before marriage can be responsible.", zh ? "希望双方都为共同生活付出，不等于这套安排本身有问题。" : "Expecting both people to contribute does not by itself make the arrangement unfair."],
+    concerningParts: [
+      { label: zh ? "规则定义权" : "Rule-making power", explanation: zh ? "“合理”和“高消费”由谁定义、是否双方同标准，原文还没有说清。" : "The text does not establish who defines reasonable or whether the same standard applies to both.", evidence: spending, severity: "notice", confidence: "中" },
+      { label: zh ? "生育成本议题错位" : "Pregnancy-cost displacement", explanation: zh ? "男性也辛苦可以成立，但没有回答女性身体、职业和机会成本如何分担。" : "Men may also work hard, but that does not answer how physical, career, and opportunity costs are shared.", evidence: birth, severity: "notice", confidence: "高" },
+      { label: zh ? "资源预先安排" : "Resources pre-allocated", explanation: zh ? "彩礼、购房和补车钱需要分别说明资金性质、产权和是否真正共同协商。" : "Gift money, property, and vehicle support need clear ownership and genuinely shared consent.", evidence: unique([...property, ...car]).slice(0, 3), severity: "notice", confidence: "中" },
+      { label: zh ? "个人决定受预期情绪影响" : "Personal choices shaped by anticipated emotion", explanation: zh ? "担心对方不开心不是明确禁止的证据，但值得核对用户是否已经先管理对方情绪再使用自己的钱。" : "Anticipated displeasure is not an explicit ban, but it matters if it comes before using one's own money.", evidence: personal, severity: "notice", confidence: "中" },
+    ].filter((item) => item.evidence.length),
+    keyAnnotations: [
+      { quotes: spending, tags: [zh ? "定义权" : "definition", zh ? "双向标准" : "reciprocity"], keyPoint: zh ? "要求用户核算自己的消费，却说关系里不能算经济账，可能让一方接受审查而共同利益不被具体核算。" : "Requiring personal accounting while disallowing accounting within the relationship may make scrutiny one-sided.", grounding: zh ? "共同预算应允许双方核算成本、提出异议和保留个人决定。" : "Shared budgeting should let both people count costs, disagree, and keep personal decisions.", uncertainty: "" },
+      { quotes: birth, tags: [zh ? "议题错位" : "topic shift", zh ? "生育成本" : "pregnancy costs"], keyPoint: zh ? "“男生也辛苦”没有直接回应女性提出的身体、职业和机会成本；两种辛苦不需要互相取消。" : "Men's hardship does not directly answer the physical, career, and opportunity costs raised; both can matter.", grounding: zh ? "要核对的是这些具体成本如何分配。" : "The concrete question is how those costs are shared.", uncertainty: "" },
+      { quotes: social, tags: [zh ? "社交双向性" : "social reciprocity"], keyPoint: zh ? "希望伴侣参与朋友圈可以正常，仍要看他是否同样进入用户的朋友和生活，而不是只让一方融入。" : "Wanting a partner involved can be normal; check whether integration works both ways.", grounding: zh ? "亲密可以增加共同时间，也应保留双方原有支持网络。" : "Closeness can grow while both people keep their support networks.", uncertainty: "" },
+      { quotes: unique([...property, ...car, ...ratio]).slice(0, 2), tags: [zh ? "产权" : "ownership", zh ? "贡献计算" : "contributions"], keyPoint: zh ? "彩礼回流、购房、补车钱和三六分不能只看比例，还要写清产权、收入、家务、照护、生育与失业阶段。" : "Property, vehicle support, and contribution ratios need ownership, income, care work, pregnancy, and unemployment terms.", grounding: zh ? "共同未来不等于一方可以先预算另一方的资源。" : "A shared future does not let one person pre-allocate the other's resources.", uncertainty: "" },
+      { quotes: personal, tags: [zh ? "个人资产" : "personal assets", zh ? "预期情绪" : "anticipated reaction"], keyPoint: zh ? "用户想用自己的钱购买婚前资产；担心对方不开心需要核对，但不能直接写成对方已经实施财务控制。" : "The user wants to buy premarital assets; anticipated displeasure should be checked, not treated as proven control.", grounding: zh ? "可以先分别确认个人资产、共同购房能力和对方的明确意见。" : "Clarify personal assets, shared borrowing capacity, and the partner's explicit view separately.", uncertainty: "" },
+    ].filter((item) => item.quotes.length).slice(0, 4),
+    selfGrounding: [zh ? "讨论共同计划，不等于放弃个人资产决定。" : "Shared planning does not require surrendering personal asset decisions.", zh ? "双方都辛苦，仍需要把不同成本逐项算清。" : "Both can work hard while different costs still need item-by-item accounting."],
+    nextStepOptions: [{ type: "clarify", title: zh ? "把规则逐项写清" : "Write each rule down", reason: zh ? "分别核对消费标准、产权、生育与照护成本、双方社交和失业阶段。" : "Check spending standards, ownership, pregnancy and care costs, both social circles, and unemployment." , message: "" }, { type: "observe", title: zh ? "暂不承诺个人资产安排" : "Do not commit personal assets yet", reason: zh ? "先确认对方是担心共同购房能力，还是反对用户保留独立资产。" : "First distinguish concern about shared borrowing from opposition to independent assets.", message: "" }],
+    risk: { level: "低", reasons: [zh ? "存在多项规则解释权和成本分配问题，但原文没有显示持续强制或现实危险。" : "Several rule-making and cost-allocation questions remain, without evidence of ongoing coercion or immediate danger."], urgentWarning: "" },
+  });
+}
+
+function breakupAnalysis(sentences: string[], language: AnalysisLanguage, statusReason: AnalysisStatusReason): AiAnalysis {
+  const pressure = unique(sentences.filter((line) => /(压力|不善表达)/.test(line))).slice(0, 2);
+  const leap = unique(sentences.filter((line) => /(交流不深|不是爱|不合适)/.test(line))).slice(0, 2);
+  const vague = unique(sentences.filter((line) => /(都是我的原因|我的问题)/.test(line))).slice(0, 1);
+  const rewrite = unique(sentences.filter((line) => /(一时冲动|从来.{0,4}爱|也许.{0,4}爱)/.test(line))).slice(0, 2);
+  const exit = unique(sentences.filter((line) => /(结束关系|祝你.{0,4}幸福|删除.{0,4}(联系|方式)|不能继续)/.test(line))).slice(0, 2);
+  const zh = language === "zh";
+  return dedupeAnalysis({ mode: "local", statusReason,
+    overview: zh ? "这是一段关系退出，而不是家庭或财务服从案例。对方从压力和交流困难直接走到“也许不是爱”和结束关系；决定本身有效，但中间的沟通过程没有被具体说明。" : "This is a relationship exit, not a family or financial compliance case. The words move from stress and communication difficulty to perhaps not love and ending the relationship without explaining the middle.",
+    evidenceBoundary: { observed: [], likely: [zh ? "对方有权结束关系；仍可看见从沟通问题跳到关系本质结论的逻辑跨越。" : "The person may end the relationship; the text still jumps from communication problems to a conclusion about what the relationship was."], uncertain: [] },
+    interactionPattern: { title: zh ? "沟通困难被直接推成关系结束" : "Communication difficulty becomes a relationship exit", steps: [
+      { action: zh ? "表达压力和表达困难" : "Stress and expression difficulty", evidence: pressure.slice(0, 1) },
+      { action: zh ? "交流问题被推成不是爱" : "Communication becomes perhaps not love", evidence: leap.slice(0, 1) },
+      { action: zh ? "用模糊自责关闭具体解释" : "Vague self-blame closes detail", evidence: vague },
+      { action: zh ? "重新解释过去关系" : "The past relationship is reinterpreted", evidence: rewrite.slice(0, 1) },
+      { action: zh ? "礼貌结束并快速退出" : "Polite but rapid exit", evidence: exit.slice(0, 1) },
+    ].filter((step) => step.evidence.length), explanation: zh ? "对方给出了完整结论，却没有说明双方是否尝试改善、具体卡在哪里。" : "A complete conclusion is given without explaining attempts or the concrete point of failure." },
+    whatTheyArePushing: [{ point: zh ? "接受关系结束，不再继续核对缺失的过程" : "Accept the ending without further examination of the missing process", evidence: exit.slice(0, 1), confidence: "高" }].filter((item) => item.evidence.length),
+    reasonableParts: [zh ? "任何一方都有权结束关系，清楚表达结束决定本身不等于操控。" : "Either person may end a relationship; clearly stating that decision is not manipulation by itself."],
+    concerningParts: [{ label: zh ? "逻辑跨越" : "Reasoning gap", explanation: zh ? "从交流不深直接到“也许不是爱”，没有说明中间的尝试和判断依据。" : "The words jump from shallow communication to perhaps not love without explaining attempts or reasoning.", evidence: leap, severity: "notice", confidence: "中" }, { label: zh ? "关系历史重写" : "Relationship-history rewrite", explanation: zh ? "“一时冲动”可能在结束时重新定义过去，但不能由此断定过去感情一定是假的。" : "Calling it an impulse may reinterpret the past, but does not prove the past was false.", evidence: rewrite, severity: "notice", confidence: "中" }].filter((item) => item.evidence.length),
+    keyAnnotations: [{ quotes: leap, tags: [zh ? "逻辑跨越" : "reasoning gap"], keyPoint: zh ? "“交流不深”是可以讨论的问题，却被直接推成“这不是爱”，中间缺少具体过程。" : "Shallow communication is discussable, but it is moved directly to not love without the missing process.", grounding: zh ? "关系结束，不等于过去的感情自动失效。" : "An ending does not automatically invalidate the past.", uncertainty: "" }, { quotes: unique([...vague, ...exit]), tags: [zh ? "模糊自责" : "vague self-blame", zh ? "关系退出" : "relationship exit"], keyPoint: zh ? "“都是我的原因”听起来负责，却没有说明具体原因；祝福和删除联系随后快速结束继续核对。" : "It is all my fault sounds accountable without naming a reason; the blessing and deletion then close further examination.", grounding: zh ? "对方可以结束，你也可以决定是否还需要一次具体说明。" : "They may end it, and you may decide whether one concrete explanation is still useful.", uncertainty: "" }].filter((item) => item.quotes.length),
+    selfGrounding: [zh ? "对方决定分手，不代表过去的感情一定是假的。" : "Their decision to end does not prove the past was false.", zh ? "困惑可能来自结论完整、过程缺失。" : "Confusion can come from a complete conclusion with a missing process."],
+    nextStepOptions: [{ type: "no_reply", title: zh ? "先暂停联系" : "Pause contact", reason: zh ? "不必立刻追着补齐对方没有说明的过程。" : "You need not immediately chase the process they did not explain.", message: "" }, { type: "clarify", title: zh ? "只问一个具体问题" : "Ask one concrete question", reason: zh ? "如果仍需要答案，只问“我们具体卡在哪里、尝试过什么”。" : "If an answer would help, ask where things specifically broke down and what was tried.", message: "" }],
+    risk: { level: "低", reasons: [zh ? "原文显示关系退出和解释不足，没有现实安全信号。" : "The text shows relationship exit and incomplete explanation, without a real-world safety signal."], urgentWarning: "" },
+  });
+}
+
 function pushingPoint(candidate: Candidate, language: AnalysisLanguage) {
   const points: Record<string, { zh: string; en: string }> = {
     reality_erosion: { zh: "接受对方的记忆作为唯一版本", en: "Accept the other person's memory as the only valid version" },
@@ -305,6 +391,9 @@ export function analyzeConversationLocally({ otherText, myText, language, contex
   const mySentences = splitSentences(myText);
   if (context === "family" && isFamilyBelongingPressure(otherText, myText)) return familyBelongingAnalysis(sentences, mySentences, language, statusReason);
   if (isBenchmarkHarmDenial(otherText)) return benchmarkHarmDenialAnalysis(sentences, language, statusReason);
+  const caseType = classifyCase(otherText, myText, context);
+  if (caseType === "premarital") return premaritalAnalysis(sentences, mySentences, language, statusReason);
+  if (caseType === "breakup") return breakupAnalysis(sentences, language, statusReason);
   const candidates = localAnalysisRules.map((rule) => scoreRule(rule, sentences, context)).filter((value): value is Candidate => Boolean(value)).sort((left, right) => right.score - left.score);
   const chains = detectChains(sentences, language);
   const primaryChain = chains[0];
@@ -330,7 +419,7 @@ export function analyzeConversationLocally({ otherText, myText, language, contex
 
   return dedupeAnalysis({
     mode: "local", statusReason, overview, evidenceBoundary: { observed, likely, uncertain },
-    interactionPattern: primaryChain ? { title: primaryChain.title, steps: primaryChain.steps, explanation: primaryChain.id === "avoidant_breakup" ? (language === "zh" ? "这些句子从交流困难直接走到关系结论，中间缺少双方如何尝试、具体卡点在哪里的说明。" : "These lines move from communication difficulty to a relationship conclusion without showing the attempts or the missing middle.") : (language === "zh" ? "这些步骤连在一起时，现实议题会逐渐变成对责任、服从或关系位置的要求。" : "Together, these steps can turn a practical issue into pressure about responsibility, compliance, or relational position.") } : { title: issue, steps: [], explanation: language === "zh" ? "目前没有至少三个有原文支持的连续步骤。" : "Fewer than three evidence-backed steps are present." },
+    interactionPattern: primaryChain ? { title: primaryChain.title, steps: primaryChain.steps, explanation: primaryChain.id === "avoidant_breakup" ? (language === "zh" ? "这些句子从交流困难直接走到关系结论，中间缺少双方如何尝试、具体卡点在哪里的说明。" : "These lines move from communication difficulty to a relationship conclusion without showing the attempts or the missing middle.") : (language === "zh" ? "这些步骤连在一起时，现实议题会逐渐变成对责任、服从或关系位置的要求。" : "Together, these steps can turn a practical issue into pressure about responsibility, compliance, or relational position.") } : { title: "", steps: [], explanation: "" },
     whatTheyArePushing: topCandidates.slice(0, 3).map((item) => ({ point: pushingPoint(item, language), evidence: item.evidence.slice(0, 3), confidence: item.confidence })),
     reasonableParts: reasonable.slice(0, 3),
     concerningParts,

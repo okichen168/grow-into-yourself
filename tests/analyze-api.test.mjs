@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { cases } from "./fixtures/conversation-cases.mjs";
 
@@ -70,6 +71,13 @@ test("local structured analysis", async (t) => {
     const { data } = await analyze({ otherText: cases.premarital.text, language: "zh", context: "relationship" }); const text = JSON.stringify(data.analysis);
     assert.ok(data.analysis.reasonableParts.length > 0); assert.match(text, /生育|双重|不对等|双向/); assert.notEqual(data.analysis.risk.level, "紧急");
   });
+  await t.test("family belonging case notices ignored correction and escalation", async () => {
+    const { data } = await analyze({ otherText: cases.familyBelonging.text, myText: cases.familyBelonging.myText, language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.risk.level, "中"); assert.ok(data.analysis.keyAnnotations.length <= 4);
+    for (const expected of cases.familyBelonging.must) assert.match(text, new RegExp(expected));
+    for (const excluded of cases.familyBelonging.mustNot) assert.doesNotMatch(text, new RegExp(excluded));
+    assert.ok(data.analysis.reasonableParts.length > 0); assert.ok(data.analysis.nextStepOptions.some((item) => item.type === "no_reply"));
+  });
   await t.test("joint budgeting is not economic control", async () => {
     const { data } = await analyze({ otherText: "这个月预算有点紧，我们一起算一下，双方都可以提出不同意见。", language: "zh", context: "relationship" }); const text = JSON.stringify(data.analysis);
     assert.doesNotMatch(text, /经济控制/); assert.equal(data.analysis.risk.level, "低");
@@ -95,7 +103,7 @@ test("AI request and fallback", async (t) => {
   await t.test("strict request returns validated AI structure without exposing configuration", async (t) => {
     let body; let calls = 0; t.mock.method(globalThis, "fetch", async (_url, init) => { calls += 1; body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
     const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" });
-    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 1500); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny" }); assert.equal(body.provider.zdr, undefined); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.overview.maxLength, 180); assert.equal(body.response_format.json_schema.schema.properties.interactionPattern.properties.steps.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.concerningParts.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.keyAnnotations.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.keyAnnotations.items.properties.keyPoint.maxLength, 120); assert.ok(body.messages[0].content.length < 3200); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 1100); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput" }); assert.equal(body.provider.zdr, undefined); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.overview.maxLength, 180); assert.equal(body.response_format.json_schema.schema.properties.interactionPattern.properties.steps.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.concerningParts.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.keyAnnotations.maxItems, 5); assert.equal(body.response_format.json_schema.schema.properties.keyAnnotations.items.properties.keyPoint.maxLength, 120); assert.ok(body.messages[0].content.length < 5000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
   });
   await t.test("HTTP 429 becomes quota-labelled local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 429 })); const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
@@ -111,4 +119,17 @@ test("AI request and fallback", async (t) => {
     assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout");
   });
   clearConfig();
+});
+
+test("loading experience stays client-only and bounded", async () => {
+  const loadingSource = await readFile(new URL("../app/lib/analysis-loading-messages.ts", import.meta.url), "utf8");
+  const checkerSource = await readFile(new URL("../app/components/english-checker.tsx", import.meta.url), "utf8");
+  const resultSource = await readFile(new URL("../app/components/conversation-analysis-result.tsx", import.meta.url), "utf8");
+  const cssSource = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const chineseMessages = [...loadingSource.matchAll(/^\s*\["([^"]+)",\s*"[^"]+"\],?$/gm)].map((match) => match[1]);
+  assert.ok(chineseMessages.length >= 30); assert.equal(new Set(chineseMessages).size, chineseMessages.length); assert.doesNotMatch(loadingSource, /乳腺增生|必须离开|一定在操控/);
+  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /45_000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /analysis-loading-messages/);
+  assert.equal((checkerSource.match(/fetch\("\/api\/analyze"/g) || []).length, 1); assert.doesNotMatch(checkerSource, /ANALYSIS_LOADING_MESSAGES.*JSON\.stringify/s);
+  assert.match(resultSource, /analysis\.keyAnnotations\.length > 0/); assert.match(resultSource, /analysis\.nextStepOptions\.length > 0/); assert.match(cssSource, /textarea::placeholder[^}]+font-style:italic/);
+  assert.match(cssSource, /prefers-reduced-motion/); assert.match(cssSource, /analysis-loading/);
 });

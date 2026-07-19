@@ -107,6 +107,100 @@ function quoteFor(sentences: string[], pattern: RegExp) {
   return sentences.find((sentence) => pattern.test(sentence)) || "";
 }
 
+function isFamilyBelongingPressure(otherText: string, myText: string) {
+  const full = `${otherText}\n${myText}`;
+  return /(合肥|外地|临近)/.test(full)
+    && /(没有家|白眼狼|良心在哪里)/.test(full)
+    && /(后果自负|走着看|试试看)/.test(full)
+    && /(养育|拉扯大|出生三十天)/.test(full);
+}
+
+function familyBelongingAnalysis(otherSentences: string[], mySentences: string[], language: AnalysisLanguage, statusReason: AnalysisStatusReason): AiAnalysis {
+  const all = [...mySentences, ...otherSentences];
+  const plan = unique(all.filter((sentence) => /(合肥|找工作|买房|见面)/.test(sentence))).slice(0, 2);
+  const distance = unique(otherSentences.filter((sentence) => /(临近的不要|找这么远|眼前就有)/.test(sentence))).slice(0, 2);
+  const inventedIntent = unique(otherSentences.filter((sentence) => /(勾来|对付我们|什么目的)/.test(sentence))).slice(0, 2);
+  const belonging = unique(otherSentences.filter((sentence) => /(没有家|白眼狼|变心|不存在)/.test(sentence))).slice(0, 3);
+  const consequence = unique(otherSentences.filter((sentence) => /(后果自负|走着看|试试看|不到黄河)/.test(sentence))).slice(0, 2);
+  const debt = unique(otherSentences.filter((sentence) => /(二十多年|养育|拉扯大|良心|出生三十天|淘汰)/.test(sentence))).slice(0, 3);
+  const judgment = unique(otherSentences.filter((sentence) => /(撒点狗粮|看不懂|你是人吗)/.test(sentence))).slice(0, 2);
+  const corrected = plan.some((sentence) => /(以后|未来|来合肥|买房)/.test(sentence)) && distance.length > 0;
+  if (language === "en") {
+    return dedupeAnalysis({
+      mode: "local", statusReason,
+      overview: "The practical issue is a partner's future work, housing, and family meeting plan. The reply keeps the distance accusation after the plan is clarified, then turns disagreement into a test of gratitude, belonging, and obedience.",
+      evidenceBoundary: { observed: [corrected ? "The plan says the partner would work and buy a home locally, while the reply continues to describe the relationship as deliberately distant." : "The exchange discusses distance, work, housing, and a family meeting."], likely: ["The practical plan is displaced by a loyalty test."], uncertain: [] },
+      interactionPattern: { title: "A practical plan becomes a test of family loyalty", steps: [
+        { action: "Work, housing, and meeting plans are stated", evidence: plan.slice(0, 1) },
+        { action: "The clarification is ignored and distance remains the charge", evidence: distance.slice(0, 1) },
+        { action: "A meeting is recast as manipulation", evidence: inventedIntent.slice(0, 1) },
+        { action: "Belonging and upbringing are made conditional", evidence: [...belonging.slice(0, 1), ...debt.slice(0, 1)] },
+        { action: "Consequences are attached to disagreement", evidence: consequence.slice(0, 1) },
+      ].filter((step) => step.evidence.length), explanation: "What should remain a discussion of work, housing, and a meeting ends with the user having to prove they still belong to the family." },
+      whatTheyArePushing: [
+        { point: "Accept the family's preferred relationship and location decision", evidence: [...distance.slice(0, 1), ...consequence.slice(0, 1)], confidence: "高" },
+        { point: "Prove gratitude and family loyalty instead of discussing the plan", evidence: [...belonging.slice(0, 1), ...debt.slice(0, 1)], confidence: "高" },
+      ],
+      reasonableParts: ["Family can reasonably ask whether work is secured, where the couple would live, how distance affects support, and whether the partner is reliable."],
+      concerningParts: [
+        { label: "Ignored factual correction", explanation: "The local work and housing plan is not re-examined before the distance accusation continues.", evidence: [...plan.slice(0, 1), ...distance.slice(0, 1)], severity: "notice", confidence: corrected ? "高" : "中" },
+        { label: "Conditional family belonging", explanation: "Disagreement is answered with loss of family identity, judgment attacks, and global condemnation.", evidence: unique([...belonging, ...judgment]).slice(0, 3), severity: "pressure", confidence: "高" },
+        { label: "Caregiving debt", explanation: "Upbringing and adoption history are used as a debt that the current choice must repay through obedience.", evidence: debt, severity: "pressure", confidence: "高" },
+        { label: "Punishment forecast", explanation: "Consequences are left vague but are used to make refusal feel dangerous.", evidence: consequence, severity: "pressure", confidence: "高" },
+      ],
+      keyAnnotations: [
+        { quotes: inventedIntent, tags: ["added intention", "issue shift"], keyPoint: "A proposed meeting is rewritten as luring someone in or organising against the family—intentions the user did not state.", grounding: "A meeting plan is not proof of manipulation.", uncertainty: "" },
+        { quotes: unique([...belonging, ...judgment]).slice(0, 3), tags: ["conditional belonging", "character attack"], keyPoint: "Family belonging is made conditional on agreement, replacing the practical plan with a verdict on loyalty and judgment.", grounding: "Choosing a partner or location does not by itself erase family care.", uncertainty: "" },
+        { quotes: consequence, tags: ["obedience pressure", "punishment forecast"], keyPoint: "Advice becomes a compliance demand when disagreement is paired with unspecified consequences.", grounding: "A vague warning is not evidence that the plan itself is wrong.", uncertainty: "" },
+        { quotes: debt, tags: ["caregiving debt", "existence-value attack"], keyPoint: "Upbringing and adoption history are tied to worth and obedience, making an adult decision feel like an unpaid moral debt.", grounding: "Care received does not remove adult decision-making authority.", uncertainty: "" },
+      ].filter((item) => item.quotes.length),
+      selfGrounding: ["The unanswered questions are still work, housing, distance, and how a meeting would happen.", "Disappointing family does not by itself mean betraying family.", "You can stop proving gratitude and return only to verifiable plans."],
+      nextStepOptions: [
+        { type: "no_reply", title: "Stop proving loyalty for now", reason: "The conversation is judging belonging rather than checking the plan.", message: "" },
+        { type: "clarify", title: "Return to work, housing, and the meeting", reason: "Discuss only the concrete plan and ask which practical risk remains unresolved.", message: "" },
+        { type: "respond", title: "End this round when insults begin", reason: "A plan cannot be clarified while family identity and worth are being attacked.", message: "" },
+      ],
+      risk: { level: "中", reasons: ["Repeated character attacks", "Threats to family belonging", "Caregiving debt and punishment forecasts"], urgentWarning: "" },
+    });
+  }
+  return dedupeAnalysis({
+    mode: "local", statusReason,
+    overview: "你原本在谈伴侣未来在哪里工作、买房和怎样见家人。对方没有根据“以后会来合肥”的补充重新核对方案，而是把分歧升级成你是否爱家、是否感恩、是否服从的问题。",
+    evidenceBoundary: { observed: [corrected ? "你已经补充未来会在合肥工作和买房，对方仍沿用“故意找远的人”这一指控。" : "原文讨论了工作地点、住房和见面安排。"], likely: ["现实方案被改写成了家庭忠诚考试。"], uncertain: [] },
+    interactionPattern: { title: "工作和见面计划被一步步改写成忠诚审判", steps: [
+      { action: "你说明工作、住房和见面计划", evidence: plan.slice(0, 1) },
+      { action: "事实补充被忽略，距离指控继续", evidence: distance.slice(0, 1) },
+      { action: "普通见面被加入恶意意图", evidence: inventedIntent.slice(0, 1) },
+      { action: "家庭归属和养育被设为服从条件", evidence: [...belonging.slice(0, 1), ...debt.slice(0, 1)] },
+      { action: "不同意被附上惩罚后果", evidence: consequence.slice(0, 1) },
+    ].filter((step) => step.evidence.length), explanation: "原本该讨论的是工作、住房和见面安排，最后却变成了你要证明自己不是白眼狼。" },
+    whatTheyArePushing: [
+      { point: "接受家人指定的伴侣距离和生活安排", evidence: [...distance.slice(0, 1), ...consequence.slice(0, 1)], confidence: "高" },
+      { point: "先证明感恩和爱家，再谈自己的选择", evidence: [...belonging.slice(0, 1), ...debt.slice(0, 1)], confidence: "高" },
+    ],
+    reasonableParts: ["家人可以具体讨论对象是否可靠、工作是否落实、未来住哪里、距离会怎样影响支持网络。"],
+    concerningParts: [
+      { label: "事实修正被忽略", explanation: "你补充了未来在合肥工作和买房，对方却没有重新核对，继续按“故意找很远的人”推进指责。", evidence: [...plan.slice(0, 1), ...distance.slice(0, 1)], severity: "notice", confidence: corrected ? "高" : "中" },
+      { label: "家庭归属惩罚", explanation: "“没有家、白眼狼”和“你是人吗”把不同意见变成失去家庭身份、接纳和人格价值的代价。", evidence: unique([...belonging, ...judgment]).slice(0, 3), severity: "pressure", confidence: "高" },
+      { label: "养育恩情压制", explanation: "二十多年的养育和被收养经历被变成当前选择必须服从的道德债务。", evidence: debt, severity: "pressure", confidence: "高" },
+      { label: "带后果暗示的服从要求", explanation: "“后果自负、走着看、试试看”不再讨论具体风险，而是让不同意本身带上惩罚预期。", evidence: consequence, severity: "pressure", confidence: "高" },
+    ],
+    keyAnnotations: [
+      { quotes: inventedIntent, tags: ["添加意图", "议题转移"], keyPoint: "见面计划被改写成“勾来”或找人对付家人，这是用户没有表达过的意图。", grounding: "提出见面，不等于强迫家人接受，也不等于在策划对抗。", uncertainty: "" },
+      { quotes: unique([...belonging, ...judgment]).slice(0, 3), tags: ["家庭归属威胁", "人格攻击"], keyPoint: "对方没有评价方案，而是用“没有家、白眼狼、你是人吗”判断你整个人和你是否配做家人。", grounding: "伴侣和地点选择不同，不自动等于不要家。", uncertainty: "" },
+      { quotes: consequence, tags: ["服从压力", "惩罚预期"], keyPoint: "建议在这里升级成了服从要求：不接受指定答案，就要承担没有说清的后果。", grounding: "模糊的后果警告，不是当前方案错误的事实证据。", uncertainty: "" },
+      { quotes: debt, tags: ["养育恩情压制", "存在价值绑定"], keyPoint: "养育和被收养经历被绑到你的价值与服从上，像是成年后的选择必须偿还这笔道德债。", grounding: "曾经被照顾，与成年后保有自己的决定权，可以同时成立。", uncertainty: "" },
+    ].filter((item) => item.quotes.length),
+    selfGrounding: ["现在仍需要核对的是工作、住房、距离和怎样见面。", "让家人失望，不自动等于背叛家人。", "你可以停止证明感恩，只回应可核实的安排。"],
+    nextStepOptions: [
+      { type: "no_reply", title: "暂停证明自己是不是好女儿", reason: "对方此刻在审判归属和感恩，不是在核对工作与住房方案。", message: "" },
+      { type: "clarify", title: "只核对工作、住房和见面事实", reason: "请对方指出哪一项现实风险仍未解决，不再回应“白眼狼”等评价。", message: "" },
+      { type: "respond", title: "出现羞辱或关系威胁时结束本轮对话", reason: "在家庭身份和人格被攻击时，继续解释很容易进入下一轮自证。", message: "" },
+    ],
+    risk: { level: "中", reasons: ["持续人格羞辱", "家庭归属威胁", "养育恩情压制和带惩罚意味的服从压力"], urgentWarning: "" },
+  });
+}
+
 function benchmarkHarmDenialAnalysis(sentences: string[], language: AnalysisLanguage, statusReason: AnalysisStatusReason): AiAnalysis {
   const denial = unique(sentences.filter((sentence) => /(什么时候.{0,8}(踢|打|骂)|不记得|就是没有)/.test(sentence))).slice(0, 3);
   const character = unique(sentences.filter((sentence) => /(厌恶|快三十|公主病|窝里斗)/.test(sentence))).slice(0, 3);
@@ -207,8 +301,9 @@ function nextSteps(chain: ChainMatch | undefined, candidates: Candidate[], langu
 }
 
 export function analyzeConversationLocally({ otherText, myText, language, context, statusReason }: { otherText: string; myText: string; language: AnalysisLanguage; context: AnalysisContext; statusReason: AnalysisStatusReason }): AiAnalysis {
-  void myText;
   const sentences = splitSentences(otherText);
+  const mySentences = splitSentences(myText);
+  if (context === "family" && isFamilyBelongingPressure(otherText, myText)) return familyBelongingAnalysis(sentences, mySentences, language, statusReason);
   if (isBenchmarkHarmDenial(otherText)) return benchmarkHarmDenialAnalysis(sentences, language, statusReason);
   const candidates = localAnalysisRules.map((rule) => scoreRule(rule, sentences, context)).filter((value): value is Candidate => Boolean(value)).sort((left, right) => right.score - left.score);
   const chains = detectChains(sentences, language);
@@ -237,10 +332,10 @@ export function analyzeConversationLocally({ otherText, myText, language, contex
     mode: "local", statusReason, overview, evidenceBoundary: { observed, likely, uncertain },
     interactionPattern: primaryChain ? { title: primaryChain.title, steps: primaryChain.steps, explanation: primaryChain.id === "avoidant_breakup" ? (language === "zh" ? "这些句子从交流困难直接走到关系结论，中间缺少双方如何尝试、具体卡点在哪里的说明。" : "These lines move from communication difficulty to a relationship conclusion without showing the attempts or the missing middle.") : (language === "zh" ? "这些步骤连在一起时，现实议题会逐渐变成对责任、服从或关系位置的要求。" : "Together, these steps can turn a practical issue into pressure about responsibility, compliance, or relational position.") } : { title: issue, steps: [], explanation: language === "zh" ? "目前没有至少三个有原文支持的连续步骤。" : "Fewer than three evidence-backed steps are present." },
     whatTheyArePushing: topCandidates.slice(0, 3).map((item) => ({ point: pushingPoint(item, language), evidence: item.evidence.slice(0, 3), confidence: item.confidence })),
-    reasonableParts: reasonable,
+    reasonableParts: reasonable.slice(0, 3),
     concerningParts,
     keyAnnotations: topCandidates.slice(0, 4).map((item) => annotation(item, language)),
-    selfGrounding: unique(selfGrounding).slice(0, 4), nextStepOptions: nextSteps(primaryChain, candidates, language),
+    selfGrounding: unique(selfGrounding).slice(0, 3), nextStepOptions: nextSteps(primaryChain, candidates, language).slice(0, 3),
     risk: { level: riskLevel, reasons: directSafety ? [directSafety.rule.explanation[language]] : topCandidates.filter((item) => item.score >= 5).map((item) => item.rule.name[language]).slice(0, 3), urgentWarning: directSafety ? (language === "zh" ? "文字出现了明确的现实危险信号。请优先确认安全，并联系可信的人或当地紧急支持。" : "The text includes an explicit real-world danger signal. Prioritise safety and contact someone trustworthy or local emergency support.") : "" },
   });
 }

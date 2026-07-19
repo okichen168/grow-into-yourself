@@ -19,17 +19,29 @@ function copyMessage(message: string) {
   if (message) navigator.clipboard?.writeText(message);
 }
 
+function leadSentence(text: string) {
+  const match = text.match(/^.*?[。！？.!?](?:\s|$)/);
+  const lead = match?.[0]?.trim() || text;
+  return { lead, rest: text.slice(lead.length).trim() };
+}
+
+function shortQuote(quote: string) {
+  return quote.length > 90 ? `${quote.slice(0, 90)}…` : quote;
+}
+
 export default function ConversationAnalysisResult({ analysis, language }: { analysis: AiAnalysis; language: AnalysisLanguage }) {
   const ui = headings[language];
   const annotationQuotes = new Set(analysis.keyAnnotations.flatMap((item) => item.quotes));
   const boundaryMain = analysis.evidenceBoundary.likely[0] || analysis.evidenceBoundary.observed[0] || "";
   const boundaryDetails = analysis.evidenceBoundary.likely.slice(boundaryMain ? 1 : 0, 3);
   const importantUncertainty = analysis.evidenceBoundary.uncertain[0] || "";
+  const overview = leadSentence(analysis.overview);
   return <div className="english-result conversation-analysis-result">
     <span className="analysis-mode">{analysis.mode === "ai" ? (language === "zh" ? "AI 深度分析" : "AI analysis") : (language === "zh" ? "基础分析" : "Basic analysis")}</span>
     {analysis.mode === "local" && analysis.statusReason === "quota" && <p className="analysis-mode-note">{language === "zh" ? "深度分析当前不可用" : "Deep analysis is currently unavailable"}</p>}
+    {analysis.mode === "local" && analysis.statusReason === "timeout" && <p className="analysis-mode-note">{language === "zh" ? "深度分析暂时超时，以下只整理原文中最明确的结构。" : "Deep analysis timed out. The notes below cover only the clearest structure in the text."}</p>}
 
-    <section className="analysis-overview"><h3>{ui.overview}</h3><p>{analysis.overview}</p></section>
+    <section className="analysis-overview"><h3>{ui.overview}</h3><p><strong>{overview.lead}</strong>{overview.rest && <> {overview.rest}</>}</p></section>
 
     {(boundaryMain || boundaryDetails.length > 0 || importantUncertainty) && <section className="analysis-boundary semantic-ground"><h3>{ui.boundary}</h3>
       {boundaryMain && <p className="boundary-main">{boundaryMain}</p>}
@@ -40,24 +52,24 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
     {(analysis.interactionPattern.steps.length > 0 || analysis.interactionPattern.explanation) && <section className="analysis-pattern semantic-notice"><h3>{ui.pattern}</h3><h4>{analysis.interactionPattern.title}</h4>
       {analysis.interactionPattern.steps.length > 0 && <ol className="interaction-steps">{analysis.interactionPattern.steps.map((step) => {
         const quote = step.evidence.find((item) => !annotationQuotes.has(item));
-        return <li key={`${step.action}-${step.evidence.join("|")}`}><b>{step.action}</b>{quote && <q>{quote.length > 90 ? `${quote.slice(0, 90)}…` : quote}</q>}</li>;
+        return <li key={`${step.action}-${step.evidence.join("|")}`}><b>{step.action}</b>{quote && <q>{shortQuote(quote)}</q>}</li>;
       })}</ol>}
       <p className="pattern-conclusion">{analysis.interactionPattern.explanation}</p>
     </section>}
 
     {analysis.whatTheyArePushing.length > 0 && <section><h3>{ui.pushing}</h3><div className="analysis-card-grid">
-      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><small>{item.confidence}</small><h4>{item.point}</h4></article>)}
+      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><h4>{item.point}</h4><small>{item.confidence}</small>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}</article>)}
     </div></section>}
 
     {analysis.reasonableParts.length > 0 && <section className="semantic-ground"><h3>{ui.reasonable}</h3><ul>{analysis.reasonableParts.map((item) => <li key={item}>{item}</li>)}</ul></section>}
 
     {analysis.concerningParts.length > 0 && <section><h3>{ui.concerns}</h3><div className="analysis-card-grid">
-      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><small>{item.label} · {item.confidence}</small><p>{item.explanation}</p></article>)}
+      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{item.explanation}</h4><small>{item.label} · {item.confidence}</small>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}</article>)}
     </div></section>}
 
     {analysis.keyAnnotations.length > 0 && <section><h3>{ui.annotations}</h3><div className="annotation-stack">
       {analysis.keyAnnotations.map((item, index) => <article className={item.tags.some((tag) => /威胁|羞辱|threat|humili/i.test(tag)) ? "semantic-high" : "semantic-notice"} key={`${item.keyPoint}-${index}`}>
-        <div className="annotation-quotes">{item.quotes.map((quote) => <q key={quote}>{quote}</q>)}</div>
+        <div className="annotation-quotes">{item.quotes.slice(0, 2).map((quote) => <q key={quote}>{shortQuote(quote)}</q>)}</div>
         <h4>{item.keyPoint}</h4>
         <div className="analysis-tags">{item.tags.map((tag) => <small key={tag}>{tag}</small>)}</div>
         {item.grounding && <p className="annotation-grounding"><b>{ui.groundingPoint}</b>{item.grounding}</p>}

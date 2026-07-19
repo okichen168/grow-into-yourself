@@ -98,8 +98,8 @@ async function callAnalysisApi(url: string, key: string, model: string, messages
     method: "POST", signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model, temperature: 0.2, max_tokens: 1500, stream: false, messages,
-      provider: { require_parameters: true, data_collection: "deny" },
+      model, temperature: 0.2, max_tokens: 1100, stream: false, messages,
+      provider: { require_parameters: true, data_collection: "deny", sort: "throughput" },
       response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: analysisSchema } },
     }),
   });

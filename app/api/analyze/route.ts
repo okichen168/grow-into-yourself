@@ -94,11 +94,15 @@ function localResponse(otherText: string, myText: string, language: AnalysisLang
 }
 
 async function callAnalysisApi(url: string, key: string, model: string, messages: Array<{ role: string; content: string }>, strictPrivacy: boolean, signal: AbortSignal) {
-  const base = { model, temperature: 0.25, max_tokens: 3200, stream: false, messages, ...(strictPrivacy ? { data_collection: "deny", zdr: true, require_parameters: true } : {}) };
-  const strict = await fetch(url, { method: "POST", signal, headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ ...base, response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: analysisSchema } } }) });
-  if (strict.ok) return strict;
-  if (![400, 415, 422].includes(strict.status)) return strict;
-  return fetch(url, { method: "POST", signal, headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ ...base, response_format: { type: "json_object" } }) });
+  return fetch(url, {
+    method: "POST", signal,
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model, temperature: 0.2, max_tokens: 2600, stream: false, messages,
+      ...(strictPrivacy ? { data_collection: "deny", zdr: true, require_parameters: true } : {}),
+      response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: analysisSchema } },
+    }),
+  });
 }
 
 export async function POST(request: Request) {

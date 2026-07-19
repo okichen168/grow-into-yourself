@@ -18,7 +18,7 @@ const copy = {
     mine: "My messages / draft reply (optional)", minePlaceholder: "Paste what you already replied, or what you are planning to send. Leave blank if unsure.",
     privacy: "Your content is not saved or published by this site, and is not used to train this project’s models.",
     analyse: "Analyze with AI", analysing: "AI is reading this…", tooLong: "This is too long. Please shorten it before analysis.",
-    unavailable: "Local structured analysis", quota: "The deep-analysis limit has been reached, so local analysis is being used.", retry: "Retry deep analysis",
+    unavailable: "Basic analysis", quota: "Deep analysis is currently unavailable.", retry: "Retry deep analysis",
     clear: "Clear this conversation", confirm: "Clear this conversation and its analysis?", cancel: "Cancel", confirmClear: "Clear",
   },
   zh: {
@@ -27,7 +27,7 @@ const copy = {
     mine: "我说过的话 / 我准备回复的话（可选）", minePlaceholder: "粘贴你已经回复过的话，或你准备发出去的话。不确定可以留空。",
     privacy: "你的内容不会被本站保存、公开，也不会用于训练本项目模型。",
     analyse: "让 AI 帮我分析", analysing: "AI 正在分析…", tooLong: "文字太长了，请删短一点再分析。",
-    unavailable: "本地结构化分析", quota: "深度分析额度已用完，目前转为本地分析", retry: "重新尝试深度分析",
+    unavailable: "基础分析", quota: "深度分析当前不可用", retry: "重新尝试深度分析",
     clear: "清空本次内容", confirm: "清空这次输入和分析结果？", cancel: "取消", confirmClear: "清空",
   },
 } as const;

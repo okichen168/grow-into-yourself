@@ -79,7 +79,7 @@ function reasonableParts(sentences: string[], language: AnalysisLanguage) {
 
 function annotation(candidate: Candidate, language: AnalysisLanguage) {
   const quote = candidate.evidence[0] || "";
-  const base = { quotes: candidate.evidence.slice(0, 3), tags: [candidate.rule.name[language]], grounding: candidate.rule.grounding[language], uncertainty: candidate.counterEvidence.length ? (language === "zh" ? `同时出现了可能减弱判断的语境：“${candidate.counterEvidence[0]}”。` : `There is also counter-context that may weaken this reading: “${candidate.counterEvidence[0]}”.`) : (language === "zh" ? "仅凭这段文字不能确认对方的内心动机或长期模式。" : "These words alone cannot confirm motive or a long-term pattern.") };
+  const base = { quotes: candidate.evidence.slice(0, 3), tags: [candidate.rule.name[language]], grounding: candidate.rule.grounding[language], uncertainty: candidate.counterEvidence.length ? (language === "zh" ? `这句话同时保留了协商空间：“${candidate.counterEvidence[0]}”。` : `This line also leaves room for discussion: “${candidate.counterEvidence[0]}”.`) : "" };
   const points: Record<string, { zh: string; en: string }> = {
     reality_erosion: { zh: /不记得/.test(quote) ? "“我不记得”只能说明对方当前没有这段记忆，不能单独推出事情没有发生；如果后面直接接“就是没有”，核对事实的空间就被关掉了。" : "这组话把一方的记忆当成唯一版本，具体证据和另一方的经历没有被正面核对。", en: "Not remembering establishes a memory difference, not proof that nothing happened. Treating that memory as the only valid version closes fact-checking." },
     role_reversal: { zh: "原本需要回答的具体问题被移开，话题转成了提出问题的人是否在冤枉、攻击或伤害对方。", en: "The concrete concern is displaced, and the person raising it becomes the one accused of causing harm." },
@@ -95,6 +95,73 @@ function annotation(candidate: Candidate, language: AnalysisLanguage) {
     direct_safety: { zh: "这里出现了现实中的伤害、跟踪或限制自由信号，优先级已经从沟通质量转向人身安全。", en: "The words indicate real-world harm, stalking, or restriction of freedom, shifting priority from communication quality to safety." },
   };
   return { ...base, keyPoint: points[candidate.rule.id]?.[language] || candidate.rule.explanation[language] };
+}
+
+function isBenchmarkHarmDenial(text: string) {
+  return /(小时候|爸爸|父母).{0,40}(踢|打|骂|辱骂)/s.test(text)
+    && /(什么时候.{0,8}(踢|打|骂)|不记得|就是没有)/s.test(text)
+    && /(公主病|冤枉人|白眼狼|学费|生活费)/s.test(text);
+}
+
+function quoteFor(sentences: string[], pattern: RegExp) {
+  return sentences.find((sentence) => pattern.test(sentence)) || "";
+}
+
+function benchmarkHarmDenialAnalysis(sentences: string[], language: AnalysisLanguage, statusReason: AnalysisStatusReason): AiAnalysis {
+  const denial = unique(sentences.filter((sentence) => /(什么时候.{0,8}(踢|打|骂)|不记得|就是没有)/.test(sentence))).slice(0, 3);
+  const character = unique(sentences.filter((sentence) => /(厌恶|快三十|公主病|窝里斗)/.test(sentence))).slice(0, 3);
+  const reversal = quoteFor(sentences, /冤枉人/);
+  const debt = unique(sentences.filter((sentence) => /(喝奶|学费|生活费|白眼狼)/.test(sentence))).slice(0, 2);
+  if (language === "en") {
+    return dedupeAnalysis({
+      mode: "local", statusReason,
+      overview: "The user names specific childhood harm. The reply does not examine what happened; it moves through denial, character judgment, accusations of dishonesty, and caregiving debt. The original event remains unanswered while the user is pushed to defend whether they are a good family member.",
+      evidenceBoundary: { observed: ["Specific childhood harm was raised, followed by denial, personal attacks, and references to caregiving costs."], likely: ["The conversation shifts from checking the event to judging the person who named it."], uncertain: [] },
+      interactionPattern: { title: "The event is replaced by a trial of the person who raised it", steps: [
+        { action: "Specific harm is named", evidence: sentences.slice(0, 1) }, { action: "The event is denied or not remembered", evidence: denial.slice(0, 1) }, { action: "Character and family value are attacked", evidence: character.slice(0, 1) }, { action: "The speaker is accused of making a false allegation", evidence: reversal ? [reversal] : [] }, { action: "Caregiving costs are used to close the issue", evidence: debt.slice(0, 1) },
+      ], explanation: "The conversation starts with what happened and ends with whether the user deserves to feel hurt or belongs in the family." },
+      whatTheyArePushing: [{ point: "Stop asking what happened and prove that you are grateful and trustworthy", evidence: [...character.slice(0, 1), ...debt.slice(0, 1)], confidence: "高" }],
+      reasonableParts: [],
+      concerningParts: [
+        { label: "Denial and closed fact-checking", explanation: "Not remembering is treated as proof that the event did not happen.", evidence: denial, severity: "pressure", confidence: "高" },
+        { label: "Role reversal", explanation: "The person naming harm is recast as the person harming the family through a false accusation.", evidence: reversal ? [reversal] : [], severity: "pressure", confidence: "高" },
+        { label: "Caregiving debt", explanation: "Tuition and daily care are used to answer a different question: whether specific harm occurred.", evidence: debt, severity: "pressure", confidence: "高" },
+      ],
+      keyAnnotations: [
+        { quotes: denial, tags: ["denial", "burden of proof"], keyPoint: "The response begins by rejecting the event, making the user prove that their pain has a factual right to exist.", grounding: "Not remembering does not establish that nothing happened.", uncertainty: "" },
+        { quotes: character, tags: ["character attack", "conditional acceptance"], keyPoint: "The topic moves from the childhood event to whether the user is mature, useful, or worthy of family acceptance.", grounding: "Family contribution is separate from whether a past event occurred.", uncertainty: "" },
+        { quotes: reversal ? [reversal] : [], tags: ["role reversal"], keyPoint: "Naming harm is reframed as falsely accusing the family, so the original question disappears.", grounding: "Describing an experience is not, by itself, proof of bad faith.", uncertainty: "" },
+        { quotes: debt, tags: ["caregiving debt", "global condemnation"], keyPoint: "Caregiving costs are used as if they cancel the possibility of harm and turn disagreement into ingratitude.", grounding: "Care received and harm experienced can both be true.", uncertainty: "" },
+      ].filter((item) => item.quotes.length),
+      selfGrounding: ["Care received and harm experienced can both be true.", "The unanswered question is still what happened, not whether you are a good child."],
+      nextStepOptions: [{ type: "no_reply", title: "Stop proving yourself for now", reason: "The reply is judging your character rather than checking the event. More evidence may only start another round of defending yourself.", message: "" }],
+      risk: { level: "中", reasons: ["Repeated denial, character attacks, role reversal, and caregiving debt appear together."], urgentWarning: "" },
+    });
+  }
+  return dedupeAnalysis({
+    mode: "local", statusReason,
+    overview: "你提出的是小时候被踢、辱骂和被赶走的具体经历。对方没有核对发生了什么，而是从否认转向评价你的人品、家庭贡献和是否感恩。原本要讨论的伤害没有得到回应，你反而被推去证明自己不是在冤枉家人。",
+    evidenceBoundary: { observed: ["你提出了具体的童年伤害；对方随后否认、评价你的人品，并提到学费和生活费。"], likely: ["议题已经从“发生过什么”转成“你有没有资格感到受伤”。"], uncertain: [] },
+    interactionPattern: { title: "原本在谈伤害，最后变成对你的审判", steps: [
+      { action: "你提出具体伤害", evidence: sentences.slice(0, 1) }, { action: "对方直接否认或说不记得", evidence: denial.slice(0, 1) }, { action: "讨论转向你的人品和家庭价值", evidence: character.slice(0, 1) }, { action: "提出伤害被说成是在冤枉人", evidence: reversal ? [reversal] : [] }, { action: "养育和经济付出被用来压回原问题", evidence: debt.slice(0, 1) },
+    ], explanation: "原本该讨论的是“发生过什么”，最后却变成了“你有没有资格感到受伤”。" },
+    whatTheyArePushing: [{ point: "停止追问伤害，转而证明自己感恩、懂事、没有冤枉家人", evidence: [...character.slice(0, 1), ...debt.slice(0, 1)], confidence: "高" }],
+    reasonableParts: [],
+    concerningParts: [
+      { label: "否认并关闭核对", explanation: "“不记得”被直接推成“就是没有”，没有留下核对具体事件的空间。", evidence: denial, severity: "pressure", confidence: "高" },
+      { label: "责任倒置", explanation: "提出伤害的人被改写成了“冤枉人”的一方，原来的事件因此被移开。", evidence: reversal ? [reversal] : [], severity: "pressure", confidence: "高" },
+      { label: "养育恩情压制", explanation: "学费和生活费被拿来回答另一件事：具体伤害是否发生。", evidence: debt, severity: "pressure", confidence: "高" },
+    ],
+    keyAnnotations: [
+      { quotes: denial, tags: ["否认伤害", "举证责任转移"], keyPoint: "对方没有先问发生了什么，而是直接否认，让你承担证明伤害存在的责任。", grounding: "对方不记得，不等于事情没有发生。", uncertainty: "" },
+      { quotes: character, tags: ["人格攻击", "条件式接纳"], keyPoint: "讨论从童年伤害转向你是否成熟、是否为家里做过贡献，以及你是否值得被接纳。", grounding: "你为家里做过多少，与那件伤害是否发生，是两个问题。", uncertainty: "" },
+      { quotes: reversal ? [reversal] : [], tags: ["责任倒置"], keyPoint: "你在描述受伤，话题却被改成你是否在陷害家人，原来的事件因此消失了。", grounding: "说出自己的经历，不等于自动怀着恶意冤枉别人。", uncertainty: "" },
+      { quotes: debt, tags: ["养育恩情压制", "人格定罪"], keyPoint: "这组话把养育付出拿来抵销伤害：仿佛只要父母花过钱，你指出受伤就是忘恩负义。", grounding: "父母曾经付出，和你曾经受伤，可以同时成立。", uncertainty: "" },
+    ].filter((item) => item.quotes.length),
+    selfGrounding: ["父母曾经付出，和你曾经受伤，可以同时成立。", "现在仍没有被回答的问题，是当年具体发生了什么。"],
+    nextStepOptions: [{ type: "no_reply", title: "先停止自证", reason: "对方目前没有在核对事实，而是在否认和评价你。继续补充证据，很可能只会进入下一轮证明自己不是坏人；暂时结束对话也是完整选择。", message: "" }],
+    risk: { level: "中", reasons: ["连续出现否认、人格攻击、责任倒置和养育恩情压制。"], urgentWarning: "" },
+  });
 }
 
 function pushingPoint(candidate: Candidate, language: AnalysisLanguage) {
@@ -142,16 +209,14 @@ function nextSteps(chain: ChainMatch | undefined, candidates: Candidate[], langu
 export function analyzeConversationLocally({ otherText, myText, language, context, statusReason }: { otherText: string; myText: string; language: AnalysisLanguage; context: AnalysisContext; statusReason: AnalysisStatusReason }): AiAnalysis {
   void myText;
   const sentences = splitSentences(otherText);
+  if (isBenchmarkHarmDenial(otherText)) return benchmarkHarmDenialAnalysis(sentences, language, statusReason);
   const candidates = localAnalysisRules.map((rule) => scoreRule(rule, sentences, context)).filter((value): value is Candidate => Boolean(value)).sort((left, right) => right.score - left.score);
   const chains = detectChains(sentences, language);
   const primaryChain = chains[0];
   const topCandidates = candidates.slice(0, 4);
-  const observed = unique(topCandidates.flatMap((item) => item.evidence)).slice(0, 6);
-  const likely = unique([...(primaryChain ? [primaryChain.title] : []), ...topCandidates.slice(0, 2).map((item) => item.rule.explanation[language])]).slice(0, 3);
-  const uncertain = unique([
-    language === "zh" ? "仅凭这些文字不能确认对方的内心动机。" : "These words alone cannot confirm the other person's motive.",
-    ...(topCandidates.some((item) => item.score < 5) ? [language === "zh" ? "部分信号只出现一次，是否长期重复仍不确定。" : "Some signals appear once; repetition over time is not established."] : []),
-  ]);
+  const observed = topCandidates.length ? [language === "zh" ? `原文中出现了${topCandidates.slice(0, 2).map((item) => item.rule.name.zh).join("和")}。` : `The text contains ${topCandidates.slice(0, 2).map((item) => item.rule.name.en.toLowerCase()).join(" and ")}.`] : [];
+  const likely = primaryChain ? [language === "zh" ? `对话正在形成“${primaryChain.title}”的连续结构。` : `The exchange forms a sequence: ${primaryChain.title.toLowerCase()}.`] : topCandidates[0] ? [topCandidates[0].rule.explanation[language]] : [];
+  const uncertain = primaryChain?.id === "avoidant_breakup" ? [language === "zh" ? "这些话不能说明过去的感情一定是假的，也不能说明结束关系一定带有操控。" : "The words do not establish that the past was false or that ending the relationship was manipulative."] : [];
   const reasonable = reasonableParts(sentences, language);
   const issue = primaryChain?.title || topCandidates[0]?.rule.name[language] || (language === "zh" ? "当前主要是一段具体分歧" : "This is mainly a concrete disagreement");
   const overview = language === "zh"

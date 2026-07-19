@@ -197,8 +197,10 @@ html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weigh
 .analysis-mode-note { margin:8px 0 0; color:#765b36; font-size:13px; }
 .analysis-retry { margin-top:12px; }
 .analysis-retry button { padding:9px 13px; border:1px solid #9bb9b3; border-radius:10px; background:#f5fbfa; color:#315b55; cursor:pointer; }
-.analysis-boundary>div+div { margin-top:14px; }
-.analysis-pattern li q { display:block; margin-top:5px; color:#5f5651; font-weight:400; }
+.analysis-boundary { max-width:790px; }
+.analysis-boundary .boundary-main { color:var(--ink); font-size:clamp(17px,2vw,20px); font-weight:720; line-height:1.68; }
+.boundary-uncertainty { margin-top:14px!important; padding-top:12px; border-top:1px solid rgba(61,103,96,.2); color:var(--muted); font-size:14px; }
+.boundary-uncertainty b,.annotation-grounding b { display:block; margin-bottom:4px; color:#436c66; font-size:11px; letter-spacing:.04em; }
 .english-result { max-width:980px; margin-top:22px; padding:clamp(22px,4vw,38px); border:1px solid var(--line); border-radius:30px; background:color-mix(in srgb,var(--paper) 94%,transparent); box-shadow:var(--shadow); }
 .conversation-analysis-result>section { margin-top:26px; }
 .conversation-analysis-result>section:first-of-type { margin-top:14px; }
@@ -223,12 +225,32 @@ html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weigh
 .annotation-stack article:nth-child(even) { margin-left:clamp(0px,5vw,46px); }
 .analysis-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
 .analysis-tags small { padding:4px 7px; border-radius:999px; background:rgba(255,255,255,.62); }
+.interaction-steps { position:relative; margin:18px 0 0!important; padding:0!important; list-style:none; counter-reset:analysis-step; }
+.interaction-steps::before { content:""; position:absolute; left:15px; top:16px; bottom:18px; width:1px; background:#c9aa72; }
+.interaction-steps li { position:relative; min-height:42px; padding:0 0 16px 44px; counter-increment:analysis-step; }
+.interaction-steps li::before { content:counter(analysis-step); position:absolute; left:0; top:0; width:30px; height:30px; display:grid; place-items:center; border:1px solid #c9aa72; border-radius:50%; background:#fffaf0; color:#765b36; font-size:12px; font-weight:800; }
+.interaction-steps li b { display:block; color:var(--ink); font-size:16px; }
+.interaction-steps li q { display:block; margin-top:4px; color:#6b5e57; font-size:14px; font-weight:400; }
+.pattern-conclusion { margin-top:4px!important; padding:14px 16px; border-left:3px solid #b58c49; background:rgba(255,255,255,.5); color:var(--ink); font-weight:720; }
+.annotation-quotes { margin-top:0; }
+.annotation-stack h4 { margin-top:14px; color:var(--ink); font-size:clamp(18px,2vw,23px); font-weight:760; }
+.annotation-stack .analysis-tags { margin:10px 0 0; }
+.annotation-grounding { margin-top:12px!important; padding:12px 14px; border-radius:12px; background:rgba(223,240,236,.72); color:#365a55; }
 .analysis-uncertainty { color:var(--muted); font-size:13px; }
 .risk-level { font-size:clamp(25px,3vw,38px); }
 .urgent-analysis-warning { font-weight:750; }
 .copy-reply { width:100%; margin-top:8px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--line); border-radius:14px; text-align:left; background:var(--paper); cursor:pointer; }
 .copy-reply:hover { border-color:var(--rose); }
 .copy-reply b { color:#376d66; font-size:12px; }
+
+@media (max-width:520px) {
+  .english-result { padding:20px 16px; border-radius:22px; }
+  .conversation-analysis-result>section { margin-top:22px; }
+  .conversation-analysis-result h3 { font-size:24px; }
+  .analysis-card-grid { grid-template-columns:1fr; }
+  .annotation-stack article:nth-child(odd),.annotation-stack article:nth-child(even) { margin-left:0; margin-right:0; }
+  .conversation-analysis-result p,.conversation-analysis-result li { font-size:16px; line-height:1.68; }
+}
 
 .section-heading { max-width: 790px; margin-bottom: 34px; }
 .section-heading h2, .tool-intro h2 { margin: 0 0 16px; font-size: clamp(36px, 4.2vw, 62px); line-height: 1.2; letter-spacing: -0.045em; }

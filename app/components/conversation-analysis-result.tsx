@@ -4,14 +4,14 @@ import type { AiAnalysis, AnalysisLanguage } from "../lib/analyze-shared";
 
 const headings = {
   en: {
-    overview: "What happened", boundary: "Evidence boundary", observed: "Observed", likely: "Likely", uncertainFacts: "Uncertain", pattern: "The interaction pattern", pushing: "What the conversation is pushing", reasonable: "What is reasonable",
+    overview: "What happened", boundary: "One thing to hold onto first", uncertainFacts: "What could change this reading", pattern: "How this conversation pulls you away from the original issue", pushing: "What the conversation is pushing", reasonable: "What is reasonable",
     concerns: "What deserves attention", annotations: "Key annotations", grounding: "Steady yourself first", next: "What you could do next", risk: "Risk level",
-    evidence: "Evidence", uncertainty: "What remains uncertain", copy: "Copy",
+    uncertainty: "What remains uncertain", groundingPoint: "Hold onto this", copy: "Copy",
   },
   zh: {
-    overview: "发生了什么", boundary: "证据边界", observed: "可观察事实", likely: "较合理推断", uncertainFacts: "目前无法确认", pattern: "整段互动结构", pushing: "对方在推动什么", reasonable: "合理的部分", concerns: "值得警惕的部分",
+    overview: "发生了什么", boundary: "先说清楚一件事", uncertainFacts: "会影响判断的不确定点", pattern: "这段对话是怎么一步步把你带走的", pushing: "对方在推动什么", reasonable: "合理的部分", concerns: "值得警惕的部分",
     annotations: "重点批注", grounding: "先把自己站稳", next: "下一步可以怎么做", risk: "风险等级",
-    evidence: "对应原话", uncertainty: "不确定之处", copy: "复制",
+    uncertainty: "不确定之处", groundingPoint: "别被带走的点", copy: "复制",
   },
 } as const;
 
@@ -21,40 +21,46 @@ function copyMessage(message: string) {
 
 export default function ConversationAnalysisResult({ analysis, language }: { analysis: AiAnalysis; language: AnalysisLanguage }) {
   const ui = headings[language];
+  const annotationQuotes = new Set(analysis.keyAnnotations.flatMap((item) => item.quotes));
+  const boundaryMain = analysis.evidenceBoundary.likely[0] || analysis.evidenceBoundary.observed[0] || "";
+  const boundaryDetails = analysis.evidenceBoundary.likely.slice(boundaryMain ? 1 : 0, 3);
+  const importantUncertainty = analysis.evidenceBoundary.uncertain[0] || "";
   return <div className="english-result conversation-analysis-result">
-    <span className="analysis-mode">{analysis.mode === "ai" ? (language === "zh" ? "AI 深度分析" : "AI analysis") : (language === "zh" ? "本地结构化分析" : "Local structured analysis")}</span>
-    {analysis.mode === "local" && analysis.statusReason === "quota" && <p className="analysis-mode-note">{language === "zh" ? "深度分析额度已用完，目前转为本地分析" : "The deep-analysis limit has been reached, so local analysis is being used."}</p>}
+    <span className="analysis-mode">{analysis.mode === "ai" ? (language === "zh" ? "AI 深度分析" : "AI analysis") : (language === "zh" ? "基础分析" : "Basic analysis")}</span>
+    {analysis.mode === "local" && analysis.statusReason === "quota" && <p className="analysis-mode-note">{language === "zh" ? "深度分析当前不可用" : "Deep analysis is currently unavailable"}</p>}
 
     <section className="analysis-overview"><h3>{ui.overview}</h3><p>{analysis.overview}</p></section>
 
-    {(analysis.evidenceBoundary.observed.length > 0 || analysis.evidenceBoundary.likely.length > 0 || analysis.evidenceBoundary.uncertain.length > 0) && <section className="analysis-boundary semantic-ground"><h3>{ui.boundary}</h3>
-      {analysis.evidenceBoundary.observed.length > 0 && <div><h4>{ui.observed}</h4><ul>{analysis.evidenceBoundary.observed.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-      {analysis.evidenceBoundary.likely.length > 0 && <div><h4>{ui.likely}</h4><ul>{analysis.evidenceBoundary.likely.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-      {analysis.evidenceBoundary.uncertain.length > 0 && <div><h4>{ui.uncertainFacts}</h4><ul>{analysis.evidenceBoundary.uncertain.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+    {(boundaryMain || boundaryDetails.length > 0 || importantUncertainty) && <section className="analysis-boundary semantic-ground"><h3>{ui.boundary}</h3>
+      {boundaryMain && <p className="boundary-main">{boundaryMain}</p>}
+      {boundaryDetails.map((item) => <p key={item}>{item}</p>)}
+      {importantUncertainty && <p className="boundary-uncertainty"><b>{ui.uncertainFacts}</b>{importantUncertainty}</p>}
     </section>}
 
-    <section className="analysis-pattern semantic-notice"><h3>{ui.pattern}</h3><h4>{analysis.interactionPattern.title}</h4>
-      {analysis.interactionPattern.steps.length > 0 && <ol>{analysis.interactionPattern.steps.map((step) => <li key={`${step.action}-${step.evidence.join("|")}`}><b>{step.action}</b>{step.evidence.map((quote) => <q key={quote}>{quote}</q>)}</li>)}</ol>}
-      <p>{analysis.interactionPattern.explanation}</p>
-    </section>
+    {(analysis.interactionPattern.steps.length > 0 || analysis.interactionPattern.explanation) && <section className="analysis-pattern semantic-notice"><h3>{ui.pattern}</h3><h4>{analysis.interactionPattern.title}</h4>
+      {analysis.interactionPattern.steps.length > 0 && <ol className="interaction-steps">{analysis.interactionPattern.steps.map((step) => {
+        const quote = step.evidence.find((item) => !annotationQuotes.has(item));
+        return <li key={`${step.action}-${step.evidence.join("|")}`}><b>{step.action}</b>{quote && <q>{quote.length > 90 ? `${quote.slice(0, 90)}…` : quote}</q>}</li>;
+      })}</ol>}
+      <p className="pattern-conclusion">{analysis.interactionPattern.explanation}</p>
+    </section>}
 
     {analysis.whatTheyArePushing.length > 0 && <section><h3>{ui.pushing}</h3><div className="analysis-card-grid">
-      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><small>{item.confidence}</small><h4>{item.point}</h4>
-        {item.evidence.length > 0 && <div className="analysis-evidence"><b>{ui.evidence}</b>{item.evidence.map((quote) => <q key={quote}>{quote}</q>)}</div>}
-      </article>)}
+      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><small>{item.confidence}</small><h4>{item.point}</h4></article>)}
     </div></section>}
 
     {analysis.reasonableParts.length > 0 && <section className="semantic-ground"><h3>{ui.reasonable}</h3><ul>{analysis.reasonableParts.map((item) => <li key={item}>{item}</li>)}</ul></section>}
 
     {analysis.concerningParts.length > 0 && <section><h3>{ui.concerns}</h3><div className="analysis-card-grid">
-      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><small>{item.label} · {item.confidence}</small><p>{item.explanation}</p>{item.evidence.length > 0 && <div className="analysis-evidence">{item.evidence.map((quote) => <q key={quote}>{quote}</q>)}</div>}</article>)}
+      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><small>{item.label} · {item.confidence}</small><p>{item.explanation}</p></article>)}
     </div></section>}
 
     {analysis.keyAnnotations.length > 0 && <section><h3>{ui.annotations}</h3><div className="annotation-stack">
       {analysis.keyAnnotations.map((item, index) => <article className={item.tags.some((tag) => /威胁|羞辱|threat|humili/i.test(tag)) ? "semantic-high" : "semantic-notice"} key={`${item.keyPoint}-${index}`}>
-        <div className="analysis-tags">{item.tags.map((tag) => <small key={tag}>{tag}</small>)}</div>
         <div className="annotation-quotes">{item.quotes.map((quote) => <q key={quote}>{quote}</q>)}</div>
-        <h4>{item.keyPoint}</h4><p>{item.grounding}</p>
+        <h4>{item.keyPoint}</h4>
+        <div className="analysis-tags">{item.tags.map((tag) => <small key={tag}>{tag}</small>)}</div>
+        {item.grounding && <p className="annotation-grounding"><b>{ui.groundingPoint}</b>{item.grounding}</p>}
         {item.uncertainty && <p className="analysis-uncertainty"><b>{ui.uncertainty}</b> {item.uncertainty}</p>}
       </article>)}
     </div></section>}

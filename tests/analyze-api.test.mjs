@@ -37,8 +37,15 @@ function aiFixture(overrides = {}) {
 test("local structured analysis", async (t) => {
   clearConfig();
   await t.test("missing configuration returns useful local content", async () => {
+    const started = performance.now();
     const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: cases.familyMoney.context });
     assert.equal(data.mode, "local"); assert.equal(data.analysis.mode, "local"); assert.equal(data.analysis.statusReason, "config"); assert.ok(data.analysis.overview.length > 30); assert.ok(data.analysis.keyAnnotations.length > 0);
+    assert.ok(performance.now() - started < 2000);
+  });
+  await t.test("missing configuration never calls the external analysis endpoint", async (t) => {
+    let calls = 0; t.mock.method(globalThis, "fetch", async () => { calls += 1; throw new Error("unexpected request"); });
+    const { data } = await analyze({ otherText: cases.harmDenial.text, language: "zh", context: "family" });
+    assert.equal(data.mode, "local"); assert.equal(calls, 0);
   });
   await t.test("family money case groups the chain and does not claim certain money motive", async () => {
     const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);
@@ -46,7 +53,10 @@ test("local structured analysis", async (t) => {
   });
   await t.test("harm denial recognises the chain without diagnosing", async () => {
     const { data } = await analyze({ otherText: cases.harmDenial.text, language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);
-    assert.ok(data.analysis.interactionPattern.steps.length >= 3); assert.match(text, /否认|不记得/); assert.match(text, /养育|学费/); assert.doesNotMatch(text, /人格障碍/);
+    assert.equal(data.analysis.risk.level, "中"); assert.ok(data.analysis.interactionPattern.steps.length >= 5); assert.match(text, /具体伤害/); assert.match(text, /否认|不记得/); assert.match(text, /人品|人格/); assert.match(text, /家庭贡献/); assert.match(text, /冤枉/); assert.match(text, /养育|学费/); assert.match(text, /白眼狼|忘恩负义/); assert.match(text, /举证|证明伤害/); assert.doesNotMatch(text, /人格障碍/);
+    assert.ok(data.analysis.keyAnnotations.length >= 3 && data.analysis.keyAnnotations.length <= 4);
+    assert.match(data.analysis.interactionPattern.explanation, /发生过什么/);
+    assert.equal(data.analysis.nextStepOptions[0]?.type, "no_reply");
   });
   await t.test("one memory difference with willingness to listen is not gaslighting or DARVO", async () => {
     const { data } = await analyze({ otherText: "我不记得这件事，但愿意听你说，也想一起核对。", language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);
@@ -76,16 +86,16 @@ test("local structured analysis", async (t) => {
   });
   await t.test("old fallback templates never return", async () => {
     const { data } = await analyze({ otherText: cases.workLocation.text, language: "zh", context: "family" });
-    assert.doesNotMatch(JSON.stringify(data), /这段文字暂时不足以做强判断|本地兜底没有命中明确模式|但这不代表关系一定健康|证明孝顺/);
+    assert.doesNotMatch(JSON.stringify(data), /这段文字暂时不足以做强判断|本地兜底没有命中明确模式|但这不代表关系一定健康|仅凭这些文字不能确认对方的内心动机|部分信号只出现一次|目前无法确认/);
   });
 });
 
 test("AI request and fallback", async (t) => {
   process.env.ANALYSIS_API_KEY = "test-only"; process.env.ANALYSIS_API_URL = "https://example.invalid/analyse"; process.env.ANALYSIS_MODEL = "test-model"; process.env.ANALYSIS_STRICT_PRIVACY = "true";
   await t.test("strict request returns validated AI structure without exposing configuration", async (t) => {
-    let body; t.mock.method(globalThis, "fetch", async (_url, init) => { body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
+    let body; let calls = 0; t.mock.method(globalThis, "fetch", async (_url, init) => { calls += 1; body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
     const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" });
-    assert.equal(data.mode, "ai"); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.data_collection, "deny"); assert.equal(body.zdr, true); assert.equal(body.require_parameters, true); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.data_collection, "deny"); assert.equal(body.zdr, true); assert.equal(body.require_parameters, true); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
   });
   await t.test("HTTP 429 becomes quota-labelled local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 429 })); const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
@@ -94,6 +104,11 @@ test("AI request and fallback", async (t) => {
   await t.test("invalid model output becomes local rather than a template error", async (t) => {
     t.mock.method(globalThis, "fetch", async () => Response.json({ choices: [{ message: { content: "not json" } }] })); const { data } = await analyze({ otherText: cases.harmDenial.text, language: "zh", context: "family" });
     assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "invalid_output");
+  });
+  await t.test("timeout errors immediately switch to local analysis", async (t) => {
+    t.mock.method(globalThis, "fetch", async () => { throw new DOMException("timed out", "AbortError"); });
+    const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout");
   });
   clearConfig();
 });

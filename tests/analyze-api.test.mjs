@@ -95,7 +95,7 @@ test("AI request and fallback", async (t) => {
   await t.test("strict request returns validated AI structure without exposing configuration", async (t) => {
     let body; let calls = 0; t.mock.method(globalThis, "fetch", async (_url, init) => { calls += 1; body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
     const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" });
-    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.data_collection, "deny"); assert.equal(body.zdr, true); assert.equal(body.require_parameters, true); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 2200); assert.deepEqual(body.reasoning, { effort: "low", exclude: true }); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny" }); assert.equal(body.provider.zdr, undefined); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.ok(body.messages[0].content.length < 4000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
   });
   await t.test("HTTP 429 becomes quota-labelled local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 429 })); const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });

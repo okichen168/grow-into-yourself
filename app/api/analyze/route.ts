@@ -93,13 +93,14 @@ function localResponse(otherText: string, myText: string, language: AnalysisLang
   return Response.json({ mode: "local", analysis, fallback: true });
 }
 
-async function callAnalysisApi(url: string, key: string, model: string, messages: Array<{ role: string; content: string }>, strictPrivacy: boolean, signal: AbortSignal) {
+async function callAnalysisApi(url: string, key: string, model: string, messages: Array<{ role: string; content: string }>, signal: AbortSignal) {
   return fetch(url, {
     method: "POST", signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model, temperature: 0.2, max_tokens: 2600, stream: false, messages,
-      ...(strictPrivacy ? { data_collection: "deny", zdr: true, require_parameters: true } : {}),
+      model, temperature: 0.2, max_tokens: 2200, stream: false, messages,
+      reasoning: { effort: "low", exclude: true },
+      provider: { require_parameters: true, data_collection: "deny" },
       response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: analysisSchema } },
     }),
   });
@@ -116,14 +117,14 @@ export async function POST(request: Request) {
   if (isRateLimited(request)) return localResponse(otherText, myText, language, context, "quota");
 
   const apiKey = process.env.ANALYSIS_API_KEY; const apiUrl = process.env.ANALYSIS_API_URL; const model = process.env.ANALYSIS_MODEL;
-  if (!apiKey || !apiUrl || !model) return localResponse(otherText, myText, language, context, "config");
-  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 25_000);
+  if (!apiKey || !apiUrl || !model || process.env.ANALYSIS_STRICT_PRIVACY !== "true") return localResponse(otherText, myText, language, context, "config");
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 40_000);
   try {
     const messages = [
       { role: "system", content: conversationAnalysisGuidelines(language) },
       { role: "user", content: `Language: ${language}. Context: ${contextLabel(context, language)}.\nOther person's words:\n${otherText}\n\nUser's words or draft:\n${myText || "(none)"}\nReturn the exact structured analysis. Quotes must be verbatim from the supplied text.` },
     ];
-    const response = await callAnalysisApi(apiUrl, apiKey, model, messages, process.env.ANALYSIS_STRICT_PRIVACY === "true", controller.signal);
+    const response = await callAnalysisApi(apiUrl, apiKey, model, messages, controller.signal);
     if (!response.ok) return localResponse(otherText, myText, language, context, response.status === 429 ? "quota" : response.status >= 500 ? "busy" : "invalid_output");
     const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> }; const content = data.choices?.[0]?.message?.content;
     if (!content) return localResponse(otherText, myText, language, context, "invalid_output");

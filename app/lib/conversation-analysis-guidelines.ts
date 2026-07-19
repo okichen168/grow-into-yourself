@@ -1,26 +1,26 @@
 import type { AnalysisLanguage } from "./analyze-shared";
 
 export function conversationAnalysisGuidelines(language: AnalysisLanguage) {
-  return `Return only strict JSON in ${language === "zh" ? "warm, clear, natural Simplified Chinese" : "warm, clear, natural English"}. Read the whole exchange first. Read every numbered item; never decide from the first item or keyword.
+  return `Return only strict JSON in ${language === "zh" ? "natural Simplified Chinese" : "natural English"}. Read the whole exchange first, including every numbered item; never decide from the first line or keyword.
 
-Internally: classify family, premarital/partner, breakup, workplace, friendship, or other; name the original issue; check corrections, ignored facts, invented intentions and contradictions; trace how the issue changes; inspect who defines reasonable, gets exceptions, must prove themselves, or manage another person's feelings. Check whether money, time, body, care, belonging and exit work both ways. Do not show this reasoning.
+Classify family, premarital, breakup, workplace, friendship, or other. Restore the original issue and trace its change. Check ignored corrections, added intentions, contradictions, who defines reasonable, gets exceptions, must prove themselves, and bears money, time, body, care, or relationship costs. Do not show this reasoning.
 
-Separate observations, supported inference and important unknowns. Every judgment must cite exact input text. Describe effects, not hidden intent. Merge related lines, say each insight once, and never reuse another case's details. Distinguish concern, negotiation, disagreement, hurtful expression, pressure, punishment, control and danger. Do not diagnose or turn one disagreement into a pattern.
+Separate observation, supported inference, and important unknowns. Every judgment must cite exact input text through evidence IDs. Describe effects, not hidden intent. Merge related lines; say each insight once. Distinguish concern, disagreement, hurtful expression, pressure, punishment, control, and danger.
 
-Family: return to work, housing, distance, partner reliability and meeting plans. Notice ignored corrections, added accusations, character attacks, conditional belonging, caregiving/adoption debt and consequences, while acknowledging concrete worries.
+Do not diagnose or infer malice. Budgets are not automatically economic control. One memory difference is not gaslighting. DARVO needs denial, attack, and role reversal. Workplace bullying normally needs repetition and power imbalance.
 
-Premarital: read spending, pregnancy/care/career costs, friends, gifts, property, vehicles, contribution ratios, unemployment and personal assets. Budgeting may be reasonable. Check who defines reasonable, reciprocity, whether another hardship answers the cost raised, ownership, pre-allocated resources, and explicit bans versus anticipated displeasure.
+Premarital: check who defines spending; reciprocal standards and social integration; pregnancy, career and unpaid-care costs; gifts, ownership and contribution ratios; pre-allocated partner resources; explicit opposition to personal assets versus anticipated displeasure. Include real reasonable parts.
 
-Breakup: respect the right to end. Examine jumps from stress or shallow communication to “not love”, vague self-blame, polite closure, quick withdrawal and history rewrite. Never invent work, housing, family duty, finance, obedience or threats.
+Breakup: respect the right to end while checking the jump from communication trouble to “not love”, vague self-blame, withdrawal, and history rewrite. Never invent family, work, housing, or finance.
 
-Track issue→character trial, disagreement→disloyalty, choice→ingratitude, harm→false accusation, pregnancy cost→another hardship, shared planning→one-sided rules, and communication trouble→past relationship declared unreal.
+Family: check ignored corrections, added accusations, conditional belonging, caregiving/adoption debt, degraded judgment, and consequences. Return reasonable worry to concrete work, housing, distance, meeting, or reliability facts.
 
-Return summary ≤180, coreShift ≤120, ≤5 steps, 3 pushes, 3 reasonable parts, 4 concerns, 3–5 annotations, 3 grounding points, 3 optional next steps and risk. Insight ≤150; quote ≤70. Use [] when no value. Next steps may be silence, one fact-check, concrete rules, a personal decision, or one natural sentence. No fixed reply sets or counselling text.
+Return useful content only: summary, core shift, ≤4 steps, 2 pushes, 2 reasonable parts, 3 concerns, 4 annotations, 2 grounding points, 2 optional next steps, and risk. Empty sections are []. Do not fill quotas. Next steps may be no reply, pause, one fact-check, or preserving a personal decision. No fixed reply sets or counselling filler.
 
-Five compact calibrations cover the main patterns; these three are minimum anchors.
-Premarital: “Shared budgeting may be reasonable; if one person defines reasonable and exceptions, check whether rule-making is reciprocal.”
-Breakup: “A person may end it; moving from shallow communication to never loved is still a reasoning jump and reinterpretation of the past.”
-Family: “If the user says the partner will work in the same city but the reply keeps alleging deliberate distance, the update did not enter discussion.”
+Five compact calibrations guide the main patterns; use three anchors.
+Premarital: budgeting may be reasonable; if one person defines reasonable and exceptions, check reciprocity.
+Breakup: ending is allowed; moving from shallow communication to never loved is still a logic jump and history rewrite.
+Family: if a same-city update is ignored while distance remains the charge, the correction did not enter discussion.
 
-Urgent requires imminent harm, coerced self-harm, stalking/tracking, confinement, withheld documents, forced return, sexual force, or current child danger. Ordinary conflict is not urgent.`;
+Urgent requires imminent harm, coerced self-harm, tracking, confinement, withheld documents, forced return, sexual force, or current child danger. Ordinary conflict is not urgent.`;
 }

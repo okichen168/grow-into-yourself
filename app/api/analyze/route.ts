@@ -125,7 +125,7 @@ function nextStepType(title: string, reason: string): NextStepType {
   return "observe";
 }
 
-function mapCompact(value: CompactAnalysis, evidenceUnits: EvidenceUnit[], urgent: boolean): AiAnalysis {
+function mapCompact(value: CompactAnalysis, evidenceUnits: EvidenceUnit[], urgent: boolean, language: AnalysisLanguage): AiAnalysis {
   const evidence = new Map(evidenceUnits.map((item) => [item.id, item.text]));
   const steps = value.interactionSteps.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
   const pushes = value.pushes.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
@@ -143,7 +143,7 @@ function mapCompact(value: CompactAnalysis, evidenceUnits: EvidenceUnit[], urgen
     keyAnnotations: annotations.map(({ item, quotes }) => ({ quotes, tags: item.tags, keyPoint: item.insight, grounding: item.grounding, uncertainty: "" })),
     selfGrounding: value.selfGrounding,
     nextStepOptions: value.nextSteps.map((item) => ({ type: nextStepType(item.title, item.reason), title: item.title, reason: item.reason, message: "" })),
-    risk: { level: riskLevel, reasons: value.risk.reasons, urgentWarning: urgent ? "文字中出现明确的现实危险信号，请优先确认人身安全。" : "" },
+    risk: { level: riskLevel, reasons: value.risk.reasons, urgentWarning: urgent ? (language === "zh" ? "文字中出现明确的现实危险信号，请优先确认人身安全。" : "The text contains an explicit real-world danger signal. Prioritise immediate safety.") : "" },
   });
 }
 
@@ -172,7 +172,7 @@ async function callAnalysisApi(url: string, key: string, model: string, messages
     method: "POST", signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model, temperature: 0.2, max_tokens: 950, stream: false, messages,
+      model, temperature: 0.2, max_tokens: 1800, stream: false, messages,
       provider: { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: false },
       plugins: [{ id: "response-healing" }],
       response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: compactAnalysisSchema } },
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.ANALYSIS_API_KEY; const apiUrl = process.env.ANALYSIS_API_URL; const model = process.env.ANALYSIS_MODEL;
   if (!apiKey || !apiUrl || !model || process.env.ANALYSIS_STRICT_PRIVACY !== "true") return localResponse(otherText, myText, language, context, "runtime_config_missing");
-  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 55_000);
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 85_000);
   try {
     const evidence = buildEvidenceUnits(otherText, myText);
     const formatEvidence = (items: EvidenceUnit[]) => items.map((item) => `${item.id}: ${item.text}`).join("\n") || "(none)";
@@ -213,7 +213,7 @@ export async function POST(request: Request) {
     if (typeof content === "string") { try { parsed = JSON.parse(content); } catch { return localResponse(otherText, myText, language, context, "invalid_output_json_syntax"); } }
     const compact = parseCompact(parsed);
     if (!compact) return localResponse(otherText, myText, language, context, "invalid_output_schema");
-    const analysis = mapCompact(compact, evidence.all, hasExplicitUrgentSignal(`${otherText}\n${myText}`));
+    const analysis = mapCompact(compact, evidence.all, hasExplicitUrgentSignal(`${otherText}\n${myText}`), language);
     return Response.json({ mode: "ai", analysis, fallback: false, completionTokens: Number.isFinite(data.usage?.completion_tokens) ? data.usage?.completion_tokens : null });
   } catch (error) {
     return localResponse(otherText, myText, language, context, error instanceof DOMException && error.name === "AbortError" ? "upstream_timeout" : "unknown");

@@ -22,5 +22,7 @@ Premarital: budgeting may be reasonable; if one person defines reasonable and ex
 Breakup: ending is allowed; moving from shallow communication to never loved is still a logic jump and history rewrite.
 Family: if a same-city update is ignored while distance remains the charge, the correction did not enter discussion.
 
-Urgent requires imminent harm, coerced self-harm, tracking, confinement, withheld documents, forced return, sexual force, or current child danger. Ordinary conflict is not urgent.`;
+Urgent requires imminent harm, coerced self-harm, tracking, confinement, withheld documents, forced return, sexual force, or current child danger. Ordinary conflict is not urgent.
+
+优先在900–1400个输出token内完成；只保留有新信息的项目，可选数组没有重要内容时返回[]；必须在JSON闭合后结束，不要为了填满栏目重复同一洞察。`;
 }

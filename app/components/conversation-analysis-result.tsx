@@ -29,6 +29,16 @@ function shortQuote(quote: string) {
   return quote.length > 90 ? `${quote.slice(0, 90)}…` : quote;
 }
 
+function confidenceLabel(value: string, language: AnalysisLanguage) {
+  if (language === "zh") return value;
+  return value === "高" ? "High" : value === "中" ? "Medium" : value === "低" ? "Low" : value;
+}
+
+function riskLabel(value: string, language: AnalysisLanguage) {
+  if (language === "zh") return value;
+  return value === "紧急" ? "Urgent" : value === "高" ? "High" : value === "中" ? "Medium" : value === "低" ? "Low" : value;
+}
+
 export default function ConversationAnalysisResult({ analysis, language }: { analysis: AiAnalysis; language: AnalysisLanguage }) {
   const ui = headings[language];
   const annotationQuotes = new Set(analysis.keyAnnotations.flatMap((item) => item.quotes));
@@ -58,13 +68,13 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
     </section>}
 
     {analysis.whatTheyArePushing.length > 0 && <section><h3>{ui.pushing}</h3><div className="analysis-card-grid">
-      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><h4>{item.point}</h4><small>{item.confidence}</small>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}</article>)}
+      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><h4>{item.point}</h4><small>{confidenceLabel(item.confidence, language)}</small>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}</article>)}
     </div></section>}
 
     {analysis.reasonableParts.length > 0 && <section className="semantic-ground"><h3>{ui.reasonable}</h3><ul>{analysis.reasonableParts.map((item) => <li key={item}>{item}</li>)}</ul></section>}
 
     {analysis.concerningParts.length > 0 && <section><h3>{ui.concerns}</h3><div className="analysis-card-grid">
-      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{item.label}</h4><p>{item.explanation}</p>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}<small>{item.confidence} · {item.severity === "high" ? (language === "zh" ? "高压" : "High pressure") : (language === "zh" ? "值得注意" : "Notice")}</small></article>)}
+      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{item.label}</h4><p>{item.explanation}</p>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}<small>{confidenceLabel(item.confidence, language)} · {item.severity === "high" ? (language === "zh" ? "高压" : "High pressure") : (language === "zh" ? "值得注意" : "Notice")}</small></article>)}
     </div></section>}
 
     {analysis.keyAnnotations.length > 0 && <section><h3>{ui.annotations}</h3><div className="annotation-stack">
@@ -85,7 +95,7 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
       </article>)}
     </div></section>}
 
-    <section className={analysis.risk.level === "紧急" || analysis.risk.level === "Urgent" ? "semantic-high" : "semantic-notice"}><h3>{ui.risk}</h3><strong className="risk-level">{analysis.risk.level}</strong>
+    <section className={analysis.risk.level === "紧急" || analysis.risk.level === "Urgent" ? "semantic-high" : "semantic-notice"}><h3>{ui.risk}</h3><strong className="risk-level">{riskLabel(analysis.risk.level, language)}</strong>
       {analysis.risk.reasons.length > 0 && <ul>{analysis.risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
       {analysis.risk.urgentWarning && <p className="urgent-analysis-warning">{analysis.risk.urgentWarning}</p>}
     </section>

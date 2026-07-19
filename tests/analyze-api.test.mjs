@@ -108,7 +108,7 @@ test("AI request and fallback", async (t) => {
   await t.test("strict request returns validated AI structure without exposing configuration", async (t) => {
     let body; let calls = 0; t.mock.method(globalThis, "fetch", async (_url, init) => { calls += 1; body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
     const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" });
-    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 950); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: false }); assert.equal(body.provider.zdr, undefined); assert.deepEqual(body.plugins, [{ id: "response-healing" }]); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.summary.maxLength, 130); assert.equal(body.response_format.json_schema.schema.properties.interactionSteps.maxItems, 4); assert.equal(body.response_format.json_schema.schema.properties.concerns.maxItems, 3); assert.equal(body.response_format.json_schema.schema.properties.annotations.maxItems, 4); assert.equal(data.analysis.evidenceBoundary.likely[0], aiFixture().coreShift); assert.deepEqual(data.analysis.interactionPattern.steps[0].evidence, ["What happened?"]); assert.match(body.messages[1].content, /E1: What happened\?|E1: \"What happened\?\"/); assert.match(body.messages[1].content, /E2:/); assert.match(body.messages[1].content, /E3:/); assert.ok(body.messages[0].content.length < 7000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 1800); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: false }); assert.equal(body.provider.zdr, undefined); assert.deepEqual(body.plugins, [{ id: "response-healing" }]); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.summary.maxLength, 130); assert.equal(body.response_format.json_schema.schema.properties.interactionSteps.maxItems, 4); assert.equal(body.response_format.json_schema.schema.properties.concerns.maxItems, 3); assert.equal(body.response_format.json_schema.schema.properties.annotations.maxItems, 4); assert.equal(data.analysis.evidenceBoundary.likely[0], aiFixture().coreShift); assert.deepEqual(data.analysis.interactionPattern.steps[0].evidence, ["What happened?"]); assert.match(body.messages[0].content, /natural English/); assert.match(body.messages[1].content, /Language: en/); assert.match(body.messages[1].content, /E1: What happened\?|E1: \"What happened\?\"/); assert.match(body.messages[1].content, /E2:/); assert.match(body.messages[1].content, /E3:/); assert.ok(body.messages[0].content.length < 7000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
   });
   await t.test("numbered evidence is complete, uniquely numbered, and mapped safely", async (t) => {
     let body; const fixture = aiFixture({
@@ -141,20 +141,35 @@ test("AI request and fallback", async (t) => {
     const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
     assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "upstream_timeout");
   });
+  await t.test("Chinese and English locale instructions and fallbacks stay aligned", async (t) => {
+    const prompts = []; t.mock.method(globalThis, "fetch", async (_url, init) => { prompts.push(JSON.parse(init.body).messages); return new Response(null, { status: 429 }); });
+    const zh = await analyze({ otherText: "我们一起把预算算清楚。", language: "zh", context: "relationship" });
+    const en = await analyze({ otherText: "Let us work out the budget together.", language: "en", context: "relationship" });
+    assert.match(prompts[0][0].content, /natural Simplified Chinese/); assert.match(prompts[0][1].content, /Language: zh/);
+    assert.match(prompts[1][0].content, /natural English/); assert.match(prompts[1][1].content, /Language: en/);
+    assert.match(zh.data.analysis.overview, /[\u3400-\u9fff]/); assert.doesNotMatch(en.data.analysis.overview, /[\u3400-\u9fff]/);
+  });
   clearConfig();
 });
 
 test("loading experience stays client-only and bounded", async () => {
+  const routeSource = await readFile(new URL("../app/api/analyze/route.ts", import.meta.url), "utf8");
   const loadingSource = await readFile(new URL("../app/lib/analysis-loading-messages.ts", import.meta.url), "utf8");
   const checkerSource = await readFile(new URL("../app/components/english-checker.tsx", import.meta.url), "utf8");
   const resultSource = await readFile(new URL("../app/components/conversation-analysis-result.tsx", import.meta.url), "utf8");
   const cssSource = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const chineseMessages = [...loadingSource.matchAll(/^\s*\["([^"]+)",\s*"[^"]+"\],?$/gm)].map((match) => match[1]);
   assert.ok(chineseMessages.length >= 30); assert.equal(new Set(chineseMessages).size, chineseMessages.length); assert.doesNotMatch(loadingSource, /乳腺增生|必须离开|一定在操控/);
-  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /60_000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /analysis-loading-messages/);
+  const bilingualRows = [...loadingSource.matchAll(/^\s*\["([^"]+)",\s*"([^"]+)"\],?$/gm)];
+  assert.equal(bilingualRows.length, chineseMessages.length); assert.ok(bilingualRows.every(([, zh, en]) => zh && en));
+  assert.match(routeSource, /85_000/); assert.match(routeSource, /max_tokens: 1800/); assert.doesNotMatch(routeSource, /reasoning\s*:/);
+  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /90_000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /Analysis is running — the page is not stuck/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /Reading this conversation carefully/); assert.match(checkerSource, /analysis-loading-messages/);
   assert.equal((checkerSource.match(/fetch\("\/api\/analyze"/g) || []).length, 1); assert.doesNotMatch(checkerSource, /ANALYSIS_LOADING_MESSAGES.*JSON\.stringify/s);
   assert.doesNotMatch(checkerSource, /DetectiveMark|detective-person|detective-hat/); assert.match(checkerSource, /ConversationScan|scan-paper|scan-light/);
   assert.match(checkerSource, /requestId\.current !== currentRequest/); assert.match(checkerSource, /setAnalysis\(null\)/); assert.match(resultSource, /analysis-mode-banner/); assert.match(resultSource, /深度分析暂未完成/);
   assert.match(resultSource, /analysis\.keyAnnotations\.length > 0/); assert.match(resultSource, /analysis\.nextStepOptions\.length > 0/); assert.match(cssSource, /textarea::placeholder[^}]+font-style:italic/);
+  for (const title of ["What happened", "One thing to hold onto first", "How this conversation pulls you away from the original issue", "What the conversation is pushing", "What is reasonable", "What deserves attention", "Key annotations", "Steady yourself first", "What you could do next", "Risk level"]) assert.match(resultSource, new RegExp(title));
+  for (const title of ["发生了什么", "先说清楚一件事", "这段对话是怎么一步步把你带走的", "对方在推动什么", "合理的部分", "值得警惕的部分", "重点批注", "先把自己站稳", "下一步可以怎么做", "风险等级"]) assert.match(resultSource, new RegExp(title));
+  assert.match(resultSource, /riskLabel\(analysis\.risk\.level, language\)/); assert.match(resultSource, /confidenceLabel\(item\.confidence, language\)/);
   assert.match(cssSource, /prefers-reduced-motion/); assert.match(cssSource, /analysis-loading/);
 });

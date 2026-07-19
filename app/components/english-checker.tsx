@@ -94,7 +94,7 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     setElapsed(0); setLoading(true); setStatus(ui.analysing); setAnalysis(null);
     const input = normaliseInput(otherText, myText);
     const controller = new AbortController(); abortRef.current = controller;
-    const clientTimeout = window.setTimeout(() => controller.abort(), 60_000);
+    const clientTimeout = window.setTimeout(() => controller.abort(), 90_000);
     try {
       const response = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...input, language, context }), signal: controller.signal });
       const data = await response.json();

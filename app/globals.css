@@ -194,6 +194,11 @@ html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weigh
 .analysis-unavailable span,.analysis-mode { display:inline-block; color:#765b36; font-size:11px; font-weight:850; letter-spacing:.06em; text-transform:uppercase; }
 .analysis-unavailable p { margin:7px 0 12px; color:var(--ink); }
 .analysis-unavailable button { padding:9px 13px; border:1px solid #c4a66f; border-radius:10px; background:#fffdf8; cursor:pointer; }
+.analysis-mode-note { margin:8px 0 0; color:#765b36; font-size:13px; }
+.analysis-retry { margin-top:12px; }
+.analysis-retry button { padding:9px 13px; border:1px solid #9bb9b3; border-radius:10px; background:#f5fbfa; color:#315b55; cursor:pointer; }
+.analysis-boundary>div+div { margin-top:14px; }
+.analysis-pattern li q { display:block; margin-top:5px; color:#5f5651; font-weight:400; }
 .english-result { max-width:980px; margin-top:22px; padding:clamp(22px,4vw,38px); border:1px solid var(--line); border-radius:30px; background:color-mix(in srgb,var(--paper) 94%,transparent); box-shadow:var(--shadow); }
 .conversation-analysis-result>section { margin-top:26px; }
 .conversation-analysis-result>section:first-of-type { margin-top:14px; }

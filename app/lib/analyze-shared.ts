@@ -1,16 +1,20 @@
 export type AnalysisLanguage = "en" | "zh";
 export type AnalysisContext = "relationship" | "family" | "workplace" | "friendship";
-export type Certainty = "明确" | "较可能" | "不确定" | "clear" | "likely" | "uncertain";
+export type AnalysisMode = "ai" | "local";
+export type AnalysisStatusReason = "success" | "quota" | "config" | "busy" | "timeout" | "invalid_output";
+export type Confidence = "高" | "中" | "低";
 export type ConcernSeverity = "notice" | "pressure" | "high";
 export type NextStepType = "no_reply" | "observe" | "clarify" | "respond" | "safety";
 
 export type AiAnalysis = {
-  mode: "ai";
+  mode: AnalysisMode;
+  statusReason: AnalysisStatusReason;
   overview: string;
-  interactionPattern: { title: string; steps: string[]; explanation: string };
-  whatTheyArePushing: Array<{ point: string; evidence: string[]; certainty: Certainty }>;
+  evidenceBoundary: { observed: string[]; likely: string[]; uncertain: string[] };
+  interactionPattern: { title: string; steps: Array<{ action: string; evidence: string[] }>; explanation: string };
+  whatTheyArePushing: Array<{ point: string; evidence: string[]; confidence: Confidence }>;
   reasonableParts: string[];
-  concerningParts: Array<{ label: string; explanation: string; severity: ConcernSeverity }>;
+  concerningParts: Array<{ label: string; explanation: string; evidence: string[]; severity: ConcernSeverity; confidence: Confidence }>;
   keyAnnotations: Array<{ quotes: string[]; tags: string[]; keyPoint: string; grounding: string; uncertainty: string }>;
   selfGrounding: string[];
   nextStepOptions: Array<{ type: NextStepType; title: string; reason: string; message: string }>;
@@ -38,9 +42,10 @@ function normaliseForComparison(value: string) {
   return value.toLowerCase().normalize("NFKC").replace(/[\s\p{P}\p{S}]+/gu, "");
 }
 
-function bigrams(value: string) {
+function trigrams(value: string) {
   const result = new Set<string>();
-  for (let index = 0; index < value.length - 1; index += 1) result.add(value.slice(index, index + 2));
+  if (value.length < 3) { if (value) result.add(value); return result; }
+  for (let index = 0; index < value.length - 2; index += 1) result.add(value.slice(index, index + 3));
   return result;
 }
 
@@ -50,14 +55,14 @@ export function textSimilarity(left: string, right: string) {
   if (!a || !b) return 0;
   if (a === b) return 1;
   if (Math.min(a.length, b.length) >= 12 && (a.includes(b) || b.includes(a))) return Math.min(a.length, b.length) / Math.max(a.length, b.length);
-  const aPairs = bigrams(a);
-  const bPairs = bigrams(b);
+  const aPairs = trigrams(a);
+  const bPairs = trigrams(b);
   let overlap = 0;
   for (const pair of aPairs) if (bPairs.has(pair)) overlap += 1;
   return aPairs.size + bPairs.size ? (2 * overlap) / (aPairs.size + bPairs.size) : 0;
 }
 
-function uniqueStrings(values: string[], seen: string[], threshold = 0.84) {
+function uniqueStrings(values: string[], seen: string[], threshold = 0.72) {
   const result: string[] = [];
   for (const value of values.map((item) => item.trim()).filter(Boolean)) {
     if ([...seen, ...result].some((existing) => textSimilarity(existing, value) >= threshold)) continue;
@@ -69,9 +74,16 @@ function uniqueStrings(values: string[], seen: string[], threshold = 0.84) {
 
 export function dedupeAnalysis(analysis: AiAnalysis): AiAnalysis {
   const seen: string[] = [analysis.overview];
-  const interactionSteps = uniqueStrings(analysis.interactionPattern.steps, seen);
+  const evidenceBoundary = {
+    observed: uniqueStrings(analysis.evidenceBoundary.observed, [], 0.9),
+    likely: uniqueStrings(analysis.evidenceBoundary.likely, seen),
+    uncertain: uniqueStrings(analysis.evidenceBoundary.uncertain, seen),
+  };
+  const interactionSteps = analysis.interactionPattern.steps.filter((item, index, all) => (
+    all.findIndex((prior) => textSimilarity(prior.action, item.action) >= 0.72) === index
+  )).map((item) => ({ ...item, evidence: uniqueStrings(item.evidence, [], 0.9).slice(0, 3) })).slice(0, 6);
   const pushing = analysis.whatTheyArePushing.filter((item) => {
-    if (seen.some((value) => textSimilarity(value, item.point) >= 0.84)) return false;
+    if (seen.some((value) => textSimilarity(value, item.point) >= 0.72)) return false;
     seen.push(item.point);
     item.evidence = uniqueStrings(item.evidence, [], 0.9).slice(0, 3);
     return true;
@@ -79,27 +91,29 @@ export function dedupeAnalysis(analysis: AiAnalysis): AiAnalysis {
   const reasonableParts = uniqueStrings(analysis.reasonableParts, seen);
   const concerningParts = analysis.concerningParts.filter((item) => {
     const combined = `${item.label} ${item.explanation}`;
-    if (seen.some((value) => textSimilarity(value, combined) >= 0.84 || textSimilarity(value, item.explanation) >= 0.84)) return false;
+    if (seen.some((value) => textSimilarity(value, combined) >= 0.72 || textSimilarity(value, item.explanation) >= 0.72)) return false;
     seen.push(combined, item.explanation);
+    item.evidence = uniqueStrings(item.evidence, [], 0.9).slice(0, 4);
     return true;
   });
   const keyAnnotations = analysis.keyAnnotations.filter((item, index, all) => {
-    if (all.slice(0, index).some((prior) => textSimilarity(prior.keyPoint, item.keyPoint) >= 0.78)) return false;
-    if (seen.some((value) => textSimilarity(value, item.keyPoint) >= 0.88)) return false;
+    if (all.slice(0, index).some((prior) => textSimilarity(prior.keyPoint, item.keyPoint) >= 0.72)) return false;
+    if (seen.some((value) => textSimilarity(value, item.keyPoint) >= 0.78)) return false;
     seen.push(item.keyPoint);
     item.quotes = uniqueStrings(item.quotes, [], 0.9).slice(0, 4);
     item.tags = uniqueStrings(item.tags, [], 0.9).slice(0, 3);
     return true;
-  }).slice(0, 6);
+  }).slice(0, analysis.mode === "local" ? 4 : 6);
   const selfGrounding = uniqueStrings(analysis.selfGrounding, seen);
   const nextStepOptions = analysis.nextStepOptions.filter((item, index, all) => (
-    all.findIndex((prior) => textSimilarity(prior.reason, item.reason) >= 0.84) === index
-  )).slice(0, 5);
+    all.findIndex((prior) => textSimilarity(prior.reason, item.reason) >= 0.72) === index
+  )).slice(0, 3);
   const riskReasons = uniqueStrings(analysis.risk.reasons, seen);
 
   return {
     ...analysis,
-    interactionPattern: { ...analysis.interactionPattern, steps: interactionSteps.slice(0, 5) },
+    evidenceBoundary,
+    interactionPattern: { ...analysis.interactionPattern, steps: interactionSteps },
     whatTheyArePushing: pushing,
     reasonableParts,
     concerningParts,

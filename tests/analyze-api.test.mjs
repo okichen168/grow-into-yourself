@@ -21,12 +21,10 @@ function clearConfig() {
 
 function aiFixture(overrides = {}) {
   return {
-    summary: "The practical question turns into a broader demand about responsibility.", coreShift: "The original issue is displaced by a total judgment.",
-    interactionSteps: [{ title: "Question", explanation: "A concrete event is raised.", evidenceIds: ["E1"] }, { title: "Blame", explanation: "Responsibility is assigned broadly.", evidenceIds: ["E2"] }, { title: "Exit", explanation: "Discussion is closed.", evidenceIds: ["E3"] }],
-    pushes: [{ title: "Accept blame", explanation: "One person is assigned sole responsibility.", evidenceIds: ["E2"] }], reasonableParts: [],
-    concerns: [{ title: "Blame shift", explanation: "A total conclusion replaces a specific action.", evidenceIds: ["E2"], severity: "medium" }],
-    annotations: [{ evidenceIds: ["E3"], insight: "The exit closes discussion before the issue is examined.", tags: ["withdrawal"], grounding: "An ended discussion is not a resolved one." }],
-    selfGrounding: ["Separate the event from the judgment."], nextSteps: [], risk: { level: "低", reasons: [] }, ...overrides,
+    coreShift: "The original issue is displaced by a total judgment.",
+    interaction: [{ title: "Question", insight: "A concrete event is raised.", evidenceIds: ["E1"] }, { title: "Blame", insight: "Responsibility is assigned broadly.", evidenceIds: ["E2"] }, { title: "Exit", insight: "Discussion is closed.", evidenceIds: ["E3"] }],
+    findings: [{ kind: "reasonable", title: "A clear question", insight: "The opening asks about a concrete event.", evidenceIds: ["E1"], grounding: "Keep the discussion on the event." }, { kind: "concern", title: "Blame shift", insight: "A total conclusion replaces a specific action.", evidenceIds: ["E2"], grounding: "A verdict is not an explanation." }],
+    nextSteps: [], risk: { level: "低", reasons: ["No immediate safety signal."] }, ...overrides,
   };
 }
 
@@ -108,25 +106,30 @@ test("AI request and fallback", async (t) => {
   await t.test("strict request returns validated AI structure without exposing configuration", async (t) => {
     let body; let calls = 0; t.mock.method(globalThis, "fetch", async (_url, init) => { calls += 1; body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(aiFixture()) } }] }); });
     const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" });
-    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 1800); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: false }); assert.equal(body.provider.zdr, undefined); assert.deepEqual(body.plugins, [{ id: "response-healing" }]); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.summary.maxLength, 130); assert.equal(body.response_format.json_schema.schema.properties.interactionSteps.maxItems, 4); assert.equal(body.response_format.json_schema.schema.properties.concerns.maxItems, 3); assert.equal(body.response_format.json_schema.schema.properties.annotations.maxItems, 4); assert.equal(data.analysis.evidenceBoundary.likely[0], aiFixture().coreShift); assert.deepEqual(data.analysis.interactionPattern.steps[0].evidence, ["What happened?"]); assert.match(body.messages[0].content, /natural English/); assert.match(body.messages[1].content, /Language: en/); assert.match(body.messages[1].content, /E1: What happened\?|E1: \"What happened\?\"/); assert.match(body.messages[1].content, /E2:/); assert.match(body.messages[1].content, /E3:/); assert.ok(body.messages[0].content.length < 7000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
+    assert.equal(data.mode, "ai"); assert.equal(calls, 1); assert.equal(body.temperature, 0.2); assert.equal(body.max_tokens, 900); assert.equal(body.reasoning, undefined); assert.deepEqual(body.provider, { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: true }); assert.equal(body.provider.zdr, undefined); assert.deepEqual(body.plugins, [{ id: "response-healing" }]); assert.equal(body.response_format.type, "json_schema"); assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.response_format.json_schema.schema.properties.coreShift.maxLength, 100); assert.equal(body.response_format.json_schema.schema.properties.interaction.maxItems, 4); assert.equal(body.response_format.json_schema.schema.properties.findings.maxItems, 5); assert.equal(data.analysis.evidenceBoundary.likely[0], aiFixture().coreShift); assert.deepEqual(data.analysis.interactionPattern.steps[0].evidence, ["What happened?"]); assert.ok(data.analysis.reasonableParts.some((item) => /clear question/i.test(item))); assert.ok(data.analysis.concerningParts.some((item) => /Blame shift/.test(item.label))); assert.match(body.messages[0].content, /natural English/); assert.match(body.messages[1].content, /Language: en/); assert.match(body.messages[1].content, /E1: What happened\?|E1: \"What happened\?\"/); assert.match(body.messages[1].content, /E2:/); assert.match(body.messages[1].content, /E3:/); assert.ok(body.messages[0].content.length < 7000); assert.doesNotMatch(JSON.stringify(data), /test-model|example\.invalid|test-only/);
   });
   await t.test("numbered evidence is complete, uniquely numbered, and mapped safely", async (t) => {
     let body; const fixture = aiFixture({
-      interactionSteps: [{ title: "All items", explanation: "The numbered points form one sequence.", evidenceIds: ["E1", "E6"] }],
-      concerns: [{ title: "Check evidence", explanation: "Only supplied evidence is retained.", evidenceIds: ["E2", "E999"], severity: "medium" }],
-      annotations: [{ evidenceIds: ["E3", "E3"], insight: "Repeated identifiers do not repeat the quote.", tags: ["evidence"], grounding: "Use the exact supplied words." }],
+      interaction: [{ title: "First", insight: "The sequence starts here.", evidenceIds: ["E1", "E6"] }, { title: "Second", insight: "The next item develops it.", evidenceIds: ["E2"] }, { title: "Third", insight: "The third item completes it.", evidenceIds: ["E3"] }],
+      findings: [{ kind: "concern", title: "Check evidence", insight: "Only supplied evidence is retained.", evidenceIds: ["E2", "E999"], grounding: "Use the exact supplied words." }, { kind: "contradiction", title: "No duplicates", insight: "Repeated identifiers do not repeat the quote.", evidenceIds: ["E3", "E3"], grounding: "Keep one accurate quote." }],
     });
     t.mock.method(globalThis, "fetch", async (_url, init) => { body = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify(fixture) } }] }); });
     const numbered = "1. First complete item.\n2、Second complete item.\n3) Third complete item.\n4. Fourth complete item.\n5、Fifth complete item.\n6) Sixth complete item.";
     const { data } = await analyze({ otherText: numbered, language: "en" });
     assert.equal(data.mode, "ai"); for (let index = 1; index <= 6; index += 1) assert.match(body.messages[1].content, new RegExp(`E${index}:`));
     assert.deepEqual(data.analysis.interactionPattern.steps[0].evidence, ["1. First complete item.", "6) Sixth complete item."]);
-    assert.deepEqual(data.analysis.concerningParts[0].evidence, ["2、Second complete item."]); assert.deepEqual(data.analysis.keyAnnotations[0].quotes, ["3) Third complete item."]);
+    assert.deepEqual(data.analysis.concerningParts[0].evidence, ["2、Second complete item."]); assert.deepEqual(data.analysis.keyAnnotations[1].quotes, ["3) Third complete item."]);
   });
   await t.test("content string, text array, object, and fenced JSON all parse", async (t) => {
     const formats = [JSON.stringify(aiFixture()), [{ type: "text", text: JSON.stringify(aiFixture()) }], aiFixture(), `\`\`\`json\n${JSON.stringify(aiFixture())}\n\`\`\``];
     let index = 0; t.mock.method(globalThis, "fetch", async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: formats[index++] } }] }));
     for (let count = 0; count < formats.length; count += 1) { const { data } = await analyze({ otherText: "What happened? This is your fault. Nothing more to say.", language: "en" }); assert.equal(data.mode, "ai"); }
+  });
+  await t.test("fewer than three valid AI interaction steps preserve the local chain", async (t) => {
+    const overlay = aiFixture({ interaction: [{ title: "Budget", insight: "A budget is proposed.", evidenceIds: ["E1"] }, { title: "Cost", insight: "A cost is disputed.", evidenceIds: ["E2"] }] });
+    t.mock.method(globalThis, "fetch", async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(overlay) } }] }));
+    const { data } = await analyze({ otherText: cases.premarital.text, myText: cases.premarital.myText, language: "zh", context: "relationship" });
+    assert.equal(data.mode, "ai"); assert.match(JSON.stringify(data.analysis.interactionPattern), /婚前|规则|消费|生育/);
   });
   await t.test("HTTP 429 becomes quota-labelled local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 429 })); const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
@@ -139,7 +142,15 @@ test("AI request and fallback", async (t) => {
   await t.test("timeout errors immediately switch to local analysis", async (t) => {
     t.mock.method(globalThis, "fetch", async () => { throw new DOMException("timed out", "AbortError"); });
     const { data } = await analyze({ otherText: cases.familyMoney.text, language: "zh", context: "family" });
-    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "upstream_timeout");
+    assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout");
+  });
+  await t.test("the server hard deadline wins without waiting for a hanging fetch", async (t) => {
+    let scheduledDelay = 0; let cleared = false;
+    t.mock.method(globalThis, "setTimeout", (callback, delay) => { scheduledDelay = Number(delay); queueMicrotask(callback); return 77; });
+    t.mock.method(globalThis, "clearTimeout", (handle) => { if (handle === 77) cleared = true; });
+    t.mock.method(globalThis, "fetch", async () => new Promise(() => {}));
+    const { data } = await analyze({ otherText: cases.premarital.text, myText: cases.premarital.myText, language: "zh", context: "relationship" });
+    assert.equal(scheduledDelay, 70_000); assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout"); assert.equal(cleared, true); assert.ok(data.analysis.reasonableParts.length > 0);
   });
   await t.test("Chinese and English locale instructions and fallbacks stay aligned", async (t) => {
     const prompts = []; t.mock.method(globalThis, "fetch", async (_url, init) => { prompts.push(JSON.parse(init.body).messages); return new Response(null, { status: 429 }); });
@@ -162,8 +173,8 @@ test("loading experience stays client-only and bounded", async () => {
   assert.ok(chineseMessages.length >= 30); assert.equal(new Set(chineseMessages).size, chineseMessages.length); assert.doesNotMatch(loadingSource, /乳腺增生|必须离开|一定在操控/);
   const bilingualRows = [...loadingSource.matchAll(/^\s*\["([^"]+)",\s*"([^"]+)"\],?$/gm)];
   assert.equal(bilingualRows.length, chineseMessages.length); assert.ok(bilingualRows.every(([, zh, en]) => zh && en));
-  assert.match(routeSource, /85_000/); assert.match(routeSource, /max_tokens: 1800/); assert.doesNotMatch(routeSource, /reasoning\s*:/);
-  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /90_000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /Analysis is running — the page is not stuck/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /Reading this conversation carefully/); assert.match(checkerSource, /analysis-loading-messages/);
+  assert.match(routeSource, /SERVER_AI_TIMEOUT_MS = 70_000/); assert.match(routeSource, /Promise\.race/); assert.match(routeSource, /max_tokens: 900/); assert.doesNotMatch(routeSource, /reasoning\s*:/); assert.doesNotMatch(routeSource, /900_?000|954_?000/);
+  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /CLIENT_ANALYSIS_TIMEOUT_MS = 75_000/); assert.match(checkerSource, /Promise\.race/); assert.doesNotMatch(checkerSource, /900_?000|954_?000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /Analysis is running — the page is not stuck/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /Reading this conversation carefully/); assert.match(checkerSource, /analysis-loading-messages/);
   assert.equal((checkerSource.match(/fetch\("\/api\/analyze"/g) || []).length, 1); assert.doesNotMatch(checkerSource, /ANALYSIS_LOADING_MESSAGES.*JSON\.stringify/s);
   assert.doesNotMatch(checkerSource, /DetectiveMark|detective-person|detective-hat/); assert.match(checkerSource, /ConversationScan|scan-paper|scan-light/);
   assert.match(checkerSource, /requestId\.current !== currentRequest/); assert.match(checkerSource, /setAnalysis\(null\)/); assert.match(resultSource, /analysis-mode-banner/); assert.match(resultSource, /深度分析暂未完成/);

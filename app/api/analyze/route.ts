@@ -13,6 +13,7 @@ import {
 
 export const runtime = "edge";
 
+export const SERVER_AI_TIMEOUT_MS = 70_000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -20,28 +21,21 @@ const compactString = (maxLength: number) => ({ type: "string", maxLength });
 const compactStringArray = (maxItems: number, maxLength = 90) => ({ type: "array", maxItems, items: compactString(maxLength) });
 const compactAnalysisSchema = {
   type: "object", additionalProperties: false,
-  required: ["summary", "coreShift", "interactionSteps", "pushes", "reasonableParts", "concerns", "annotations", "selfGrounding", "nextSteps", "risk"],
+  required: ["coreShift", "interaction", "findings", "nextSteps", "risk"],
   properties: {
-    summary: compactString(130), coreShift: compactString(90),
-    interactionSteps: { type: "array", maxItems: 4, items: { type: "object", additionalProperties: false, required: ["title", "explanation", "evidenceIds"], properties: { title: compactString(18), explanation: compactString(95), evidenceIds: compactStringArray(2, 8) } } },
-    pushes: { type: "array", maxItems: 2, items: { type: "object", additionalProperties: false, required: ["title", "explanation", "evidenceIds"], properties: { title: compactString(18), explanation: compactString(95), evidenceIds: compactStringArray(2, 8) } } },
-    reasonableParts: { type: "array", maxItems: 2, items: { type: "object", additionalProperties: false, required: ["title", "explanation", "evidenceIds"], properties: { title: compactString(18), explanation: compactString(95), evidenceIds: compactStringArray(2, 8) } } },
-    concerns: { type: "array", maxItems: 3, items: { type: "object", additionalProperties: false, required: ["title", "explanation", "evidenceIds", "severity"], properties: { title: compactString(18), explanation: compactString(95), evidenceIds: compactStringArray(2, 8), severity: { type: "string", enum: ["low", "medium", "high"] } } } },
-    annotations: { type: "array", maxItems: 4, items: { type: "object", additionalProperties: false, required: ["evidenceIds", "insight", "tags", "grounding"], properties: { evidenceIds: compactStringArray(2, 8), insight: compactString(120), tags: compactStringArray(2, 18), grounding: compactString(70) } } },
-    selfGrounding: compactStringArray(2, 80),
-    nextSteps: { type: "array", maxItems: 2, items: { type: "object", additionalProperties: false, required: ["title", "reason"], properties: { title: compactString(18), reason: compactString(80) } } },
+    coreShift: compactString(100),
+    interaction: { type: "array", maxItems: 4, items: { type: "object", additionalProperties: false, required: ["title", "insight", "evidenceIds"], properties: { title: compactString(18), insight: compactString(110), evidenceIds: compactStringArray(2, 8) } } },
+    findings: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["kind", "title", "insight", "evidenceIds", "grounding"], properties: { kind: { type: "string", enum: ["reasonable", "concern", "contradiction", "power"] }, title: compactString(18), insight: compactString(110), evidenceIds: compactStringArray(2, 8), grounding: compactString(70) } } },
+    nextSteps: { type: "array", maxItems: 2, items: { type: "object", additionalProperties: false, required: ["title", "reason"], properties: { title: compactString(18), reason: compactString(75) } } },
     risk: { type: "object", additionalProperties: false, required: ["level", "reasons"], properties: { level: { type: "string", enum: ["低", "中", "高", "紧急"] }, reasons: compactStringArray(2, 80) } },
   },
 } as const;
 
-type CompactAnalysis = {
-  summary: string; coreShift: string;
-  interactionSteps: Array<{ title: string; explanation: string; evidenceIds: string[] }>;
-  pushes: Array<{ title: string; explanation: string; evidenceIds: string[] }>;
-  reasonableParts: Array<{ title: string; explanation: string; evidenceIds: string[] }>;
-  concerns: Array<{ title: string; explanation: string; evidenceIds: string[]; severity: "low" | "medium" | "high" }>;
-  annotations: Array<{ evidenceIds: string[]; insight: string; tags: string[]; grounding: string }>;
-  selfGrounding: string[]; nextSteps: Array<{ title: string; reason: string }>;
+type AiInsightOverlay = {
+  coreShift: string;
+  interaction: Array<{ title: string; insight: string; evidenceIds: string[] }>;
+  findings: Array<{ kind: "reasonable" | "concern" | "contradiction" | "power"; title: string; insight: string; evidenceIds: string[]; grounding: string }>;
+  nextSteps: Array<{ title: string; reason: string }>;
   risk: { level: "低" | "中" | "高" | "紧急"; reasons: string[] };
 };
 
@@ -98,23 +92,18 @@ function cleanStrings(value: unknown, maxItems: number, maxLength: number, allow
 }
 function cleanObjects(value: unknown, maxItems: number) { return Array.isArray(value) ? value.slice(0, maxItems) : null; }
 
-function parseCompact(value: unknown): CompactAnalysis | null {
+function parseCompact(value: unknown): AiInsightOverlay | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  const summary = cleanString(row.summary, 130); const coreShift = cleanString(row.coreShift, 90);
-  const steps = cleanObjects(row.interactionSteps, 4); const pushes = cleanObjects(row.pushes, 2); const reasonable = cleanObjects(row.reasonableParts, 2);
-  const concerns = cleanObjects(row.concerns, 3); const annotations = cleanObjects(row.annotations, 4); const next = cleanObjects(row.nextSteps, 2);
-  const grounding = cleanStrings(row.selfGrounding, 2, 80); const risk = row.risk as Record<string, unknown> | null;
-  if (!summary || !coreShift || !steps || !pushes || !reasonable || !concerns || !annotations || !next || !grounding || !risk) return null;
-  const interactionSteps = steps.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const explanation = cleanString(item?.explanation, 95); const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8); return title && explanation && evidenceIds ? { title, explanation, evidenceIds } : null; });
-  const parsedPushes = pushes.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const explanation = cleanString(item?.explanation, 95); const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8); return title && explanation && evidenceIds ? { title, explanation, evidenceIds } : null; });
-  const reasonableParts = reasonable.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const explanation = cleanString(item?.explanation, 95); const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8); return title && explanation && evidenceIds ? { title, explanation, evidenceIds } : null; });
-  const parsedConcerns = concerns.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const explanation = cleanString(item?.explanation, 95); const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8); return title && explanation && evidenceIds && ["low", "medium", "high"].includes(String(item.severity)) ? { title, explanation, evidenceIds, severity: item.severity as "low" | "medium" | "high" } : null; });
-  const parsedAnnotations = annotations.map((entry) => { const item = entry as Record<string, unknown>; const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8, false); const tags = cleanStrings(item?.tags, 2, 18); const insight = cleanString(item?.insight, 120); const note = cleanString(item?.grounding, 70); return evidenceIds && tags && insight && note ? { evidenceIds, tags, insight, grounding: note } : null; });
-  const nextSteps = next.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const reason = cleanString(item?.reason, 80); return title && reason ? { title, reason } : null; });
+  const coreShift = cleanString(row.coreShift, 100); const interactions = cleanObjects(row.interaction, 4); const findings = cleanObjects(row.findings, 5); const next = cleanObjects(row.nextSteps, 2);
+  const risk = row.risk as Record<string, unknown> | null;
+  if (!coreShift || !interactions || !findings || !next || !risk) return null;
+  const interaction = interactions.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const insight = cleanString(item?.insight, 110); const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8, false); return title && insight && evidenceIds ? { title, insight, evidenceIds } : null; });
+  const parsedFindings = findings.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const insight = cleanString(item?.insight, 110); const evidenceIds = cleanStrings(item?.evidenceIds, 2, 8, false); const grounding = cleanString(item?.grounding, 70); const kind = String(item.kind); return title && insight && evidenceIds && grounding && ["reasonable", "concern", "contradiction", "power"].includes(kind) ? { kind: kind as AiInsightOverlay["findings"][number]["kind"], title, insight, evidenceIds, grounding } : null; });
+  const nextSteps = next.map((entry) => { const item = entry as Record<string, unknown>; const title = cleanString(item?.title, 18); const reason = cleanString(item?.reason, 75); return title && reason ? { title, reason } : null; });
   const reasons = cleanStrings(risk.reasons, 2, 80);
-  if ([...interactionSteps, ...parsedPushes, ...reasonableParts, ...parsedConcerns, ...parsedAnnotations, ...nextSteps].some((item) => !item) || !reasons || !["低", "中", "高", "紧急"].includes(String(risk.level))) return null;
-  return { summary, coreShift, interactionSteps: interactionSteps as CompactAnalysis["interactionSteps"], pushes: parsedPushes as CompactAnalysis["pushes"], reasonableParts: reasonableParts as CompactAnalysis["reasonableParts"], concerns: parsedConcerns as CompactAnalysis["concerns"], annotations: parsedAnnotations as CompactAnalysis["annotations"], selfGrounding: grounding, nextSteps: nextSteps as CompactAnalysis["nextSteps"], risk: { level: risk.level as CompactAnalysis["risk"]["level"], reasons } };
+  if ([...interaction, ...parsedFindings, ...nextSteps].some((item) => !item) || !reasons || !["低", "中", "高", "紧急"].includes(String(risk.level))) return null;
+  return { coreShift, interaction: interaction as AiInsightOverlay["interaction"], findings: parsedFindings as AiInsightOverlay["findings"], nextSteps: nextSteps as AiInsightOverlay["nextSteps"], risk: { level: risk.level as AiInsightOverlay["risk"]["level"], reasons } };
 }
 
 function nextStepType(title: string, reason: string): NextStepType {
@@ -125,26 +114,30 @@ function nextStepType(title: string, reason: string): NextStepType {
   return "observe";
 }
 
-function mapCompact(value: CompactAnalysis, evidenceUnits: EvidenceUnit[], urgent: boolean, language: AnalysisLanguage): AiAnalysis {
+function mergeOverlay(local: AiAnalysis, value: AiInsightOverlay, evidenceUnits: EvidenceUnit[], urgent: boolean, language: AnalysisLanguage): AiAnalysis {
   const evidence = new Map(evidenceUnits.map((item) => [item.id, item.text]));
-  const steps = value.interactionSteps.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
-  const pushes = value.pushes.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
-  const reasonable = value.reasonableParts.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
-  const concerns = value.concerns.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
-  const annotations = value.annotations.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
-  const riskLevel = urgent ? "紧急" : value.risk.level === "紧急" ? "高" : value.risk.level;
-  return dedupeAnalysis({
-    mode: "ai", statusReason: "success", overview: value.summary,
-    evidenceBoundary: { observed: [], likely: [value.coreShift], uncertain: [] },
-    interactionPattern: { title: value.coreShift, steps: steps.map(({ item, quotes }) => ({ action: `${item.title}：${item.explanation}`, evidence: quotes })), explanation: value.coreShift },
-    whatTheyArePushing: pushes.map(({ item, quotes }) => ({ point: `${item.title}：${item.explanation}`, evidence: quotes, confidence: "中" })),
-    reasonableParts: reasonable.map(({ item }) => `${item.title}：${item.explanation}`),
-    concerningParts: concerns.map(({ item, quotes }) => ({ label: item.title, explanation: item.explanation, evidence: quotes, severity: item.severity === "high" ? "high" : item.severity === "medium" ? "pressure" : "notice", confidence: item.severity === "low" ? "中" : "高" })),
-    keyAnnotations: annotations.map(({ item, quotes }) => ({ quotes, tags: item.tags, keyPoint: item.insight, grounding: item.grounding, uncertainty: "" })),
-    selfGrounding: value.selfGrounding,
-    nextStepOptions: value.nextSteps.map((item) => ({ type: nextStepType(item.title, item.reason), title: item.title, reason: item.reason, message: "" })),
-    risk: { level: riskLevel, reasons: value.risk.reasons, urgentWarning: urgent ? (language === "zh" ? "文字中出现明确的现实危险信号，请优先确认人身安全。" : "The text contains an explicit real-world danger signal. Prioritise immediate safety.") : "" },
+  const interaction = value.interaction.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
+  const findings = value.findings.map((item) => ({ item, quotes: evidenceText(item.evidenceIds, evidence) })).filter((entry) => entry.quotes.length);
+  const reasonable = findings.filter(({ item }) => item.kind === "reasonable");
+  const concerns = findings.filter(({ item }) => item.kind !== "reasonable");
+  const grounding = [...new Set([...findings.map(({ item }) => item.grounding), ...local.selfGrounding])].slice(0, 3);
+  const annotations = findings.filter(({ item }, index, all) => all.findIndex(({ item: prior }) => prior.insight === item.insight) === index).map(({ item, quotes }) => ({ quotes, tags: [item.kind], keyPoint: item.insight, grounding: item.grounding, uncertainty: "" })).slice(0, 5);
+  const canOverrideRisk = findings.length > 0 && value.risk.reasons.length > 0;
+  const riskLevel = urgent ? "紧急" : canOverrideRisk ? (value.risk.level === "紧急" ? "高" : value.risk.level) : local.risk.level;
+  const separator = language === "zh" ? "。" : ". ";
+  const overview = local.overview.includes(value.coreShift) ? local.overview : `${value.coreShift}${separator}${local.overview}`;
+  const merged = dedupeAnalysis({
+    ...local, mode: "ai", statusReason: "success", overview,
+    evidenceBoundary: { ...local.evidenceBoundary, likely: [value.coreShift] },
+    interactionPattern: interaction.length >= 3 ? { title: value.coreShift, steps: interaction.map(({ item, quotes }) => ({ action: `${item.title}：${item.insight}`, evidence: quotes })), explanation: value.coreShift } : local.interactionPattern,
+    reasonableParts: reasonable.length ? reasonable.map(({ item }) => `${item.title}：${item.insight}`) : local.reasonableParts,
+    concerningParts: concerns.length ? concerns.map(({ item, quotes }) => ({ label: item.title, explanation: item.insight, evidence: quotes, severity: item.kind === "power" && ["高", "紧急"].includes(riskLevel) ? "high" as const : item.kind === "contradiction" ? "notice" as const : "pressure" as const, confidence: item.kind === "contradiction" ? "中" as const : "高" as const })) : local.concerningParts,
+    keyAnnotations: annotations.length ? annotations : local.keyAnnotations,
+    selfGrounding: grounding,
+    nextStepOptions: value.nextSteps.length ? value.nextSteps.map((item) => ({ type: nextStepType(item.title, item.reason), title: item.title, reason: item.reason, message: "" })) : local.nextStepOptions,
+    risk: { level: riskLevel, reasons: canOverrideRisk ? value.risk.reasons : local.risk.reasons, urgentWarning: urgent ? (language === "zh" ? "文字中出现明确的现实危险信号，请优先确认人身安全。" : "The text contains an explicit real-world danger signal. Prioritise immediate safety.") : local.risk.urgentWarning },
   });
+  return { ...merged, keyAnnotations: annotations.length ? annotations : merged.keyAnnotations };
 }
 
 function extractContent(value: unknown): unknown {
@@ -162,8 +155,8 @@ function statusForHttp(status: number): AnalysisStatusReason {
   if (status === 408) return "upstream_408"; if (status === 429) return "upstream_429"; if (status === 404 || status === 503) return "upstream_no_provider"; return "unknown";
 }
 
-function localResponse(otherText: string, myText: string, language: AnalysisLanguage, context: AnalysisContext, statusReason: AnalysisStatusReason) {
-  const analysis = analyzeConversationLocally({ otherText, myText, language, context, statusReason });
+function localResponse(base: AiAnalysis, statusReason: AnalysisStatusReason) {
+  const analysis = { ...base, mode: "local" as const, statusReason };
   return Response.json({ mode: "local", analysis, fallback: true });
 }
 
@@ -172,8 +165,8 @@ async function callAnalysisApi(url: string, key: string, model: string, messages
     method: "POST", signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model, temperature: 0.2, max_tokens: 1800, stream: false, messages,
-      provider: { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: false },
+      model, temperature: 0.2, max_tokens: 900, stream: false, messages,
+      provider: { require_parameters: true, data_collection: "deny", sort: "throughput", allow_fallbacks: true },
       plugins: [{ id: "response-healing" }],
       response_format: { type: "json_schema", json_schema: { name: "conversation_analysis", strict: true, schema: compactAnalysisSchema } },
     }),
@@ -188,11 +181,13 @@ export async function POST(request: Request) {
   const { otherText, myText } = normaliseInput(payload.otherText || "", payload.myText || "");
   if (otherText.length < 2) return Response.json({ error: language === "zh" ? "请先粘贴对方发来的话。" : "Please paste the other person’s messages first." }, { status: 400 });
   if ((payload.otherText || "").length > 6000 || (payload.myText || "").length > 3000) return Response.json({ error: language === "zh" ? "文字太长了，请删短一点再分析。" : "This is too long. Please shorten it before analysis." }, { status: 413 });
-  if (isRateLimited(request)) return localResponse(otherText, myText, language, context, "quota");
+  const local = analyzeConversationLocally({ otherText, myText, language, context, statusReason: "success" });
+  if (isRateLimited(request)) return localResponse(local, "quota");
 
   const apiKey = process.env.ANALYSIS_API_KEY; const apiUrl = process.env.ANALYSIS_API_URL; const model = process.env.ANALYSIS_MODEL;
-  if (!apiKey || !apiUrl || !model || process.env.ANALYSIS_STRICT_PRIVACY !== "true") return localResponse(otherText, myText, language, context, "runtime_config_missing");
-  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 85_000);
+  if (!apiKey || !apiUrl || !model || process.env.ANALYSIS_STRICT_PRIVACY !== "true") return localResponse(local, "runtime_config_missing");
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const evidence = buildEvidenceUnits(otherText, myText);
     const formatEvidence = (items: EvidenceUnit[]) => items.map((item) => `${item.id}: ${item.text}`).join("\n") || "(none)";
@@ -200,22 +195,23 @@ export async function POST(request: Request) {
       { role: "system", content: conversationAnalysisGuidelines(language) },
       { role: "user", content: `Language: ${language}. Context: ${contextLabel(context, language)}.\nOther person's evidence:\n${formatEvidence(evidence.other)}\n\nUser's evidence:\n${formatEvidence(evidence.mine)}\n\nOnly return JSON matching the Schema. Evidence may cite only the supplied E identifiers. Do not repeat full source text. Do not output Markdown or explanations.` },
     ];
-    const response = await callAnalysisApi(apiUrl, apiKey, model, messages, controller.signal);
-    if (!response.ok) return localResponse(otherText, myText, language, context, statusForHttp(response.status));
+    const deadline = new Promise<never>((_, reject) => { timeout = setTimeout(() => { controller.abort(); reject(new DOMException("Analysis deadline reached", "AbortError")); }, SERVER_AI_TIMEOUT_MS); });
+    const response = await Promise.race([callAnalysisApi(apiUrl, apiKey, model, messages, controller.signal), deadline]);
+    if (!response.ok) return localResponse(local, statusForHttp(response.status));
     const data = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }>; usage?: { completion_tokens?: number } };
     const choice = data.choices?.[0];
-    if (!choice) return localResponse(otherText, myText, language, context, "invalid_output_empty");
-    if (choice.message?.refusal) return localResponse(otherText, myText, language, context, "invalid_output_refusal");
-    if (choice.finish_reason === "length") return localResponse(otherText, myText, language, context, "invalid_output_truncated");
+    if (!choice) return localResponse(local, "invalid_output_empty");
+    if (choice.message?.refusal) return localResponse(local, "invalid_output_refusal");
+    if (choice.finish_reason === "length") return localResponse(local, "invalid_output_truncated");
     const content = extractContent(choice.message?.content);
-    if (!content || content === "") return localResponse(otherText, myText, language, context, "invalid_output_empty");
+    if (!content || content === "") return localResponse(local, "invalid_output_empty");
     let parsed: unknown = content;
-    if (typeof content === "string") { try { parsed = JSON.parse(content); } catch { return localResponse(otherText, myText, language, context, "invalid_output_json_syntax"); } }
+    if (typeof content === "string") { try { parsed = JSON.parse(content); } catch { return localResponse(local, "invalid_output_json_syntax"); } }
     const compact = parseCompact(parsed);
-    if (!compact) return localResponse(otherText, myText, language, context, "invalid_output_schema");
-    const analysis = mapCompact(compact, evidence.all, hasExplicitUrgentSignal(`${otherText}\n${myText}`), language);
+    if (!compact) return localResponse(local, "invalid_output_schema");
+    const analysis = mergeOverlay(local, compact, evidence.all, hasExplicitUrgentSignal(`${otherText}\n${myText}`), language);
     return Response.json({ mode: "ai", analysis, fallback: false, completionTokens: Number.isFinite(data.usage?.completion_tokens) ? data.usage?.completion_tokens : null });
   } catch (error) {
-    return localResponse(otherText, myText, language, context, error instanceof DOMException && error.name === "AbortError" ? "upstream_timeout" : "unknown");
-  } finally { clearTimeout(timeout); }
+    return localResponse(local, error instanceof DOMException && error.name === "AbortError" ? "timeout" : "unknown");
+  } finally { if (timeout) clearTimeout(timeout); }
 }

@@ -5,6 +5,8 @@ import ConversationAnalysisResult from "./conversation-analysis-result";
 import { normaliseInput, type AiAnalysis, type AnalysisContext, type AnalysisLanguage } from "../lib/analyze-shared";
 import { createLoadingSequence, type LoadingMessage } from "../lib/analysis-loading-messages";
 
+export const CLIENT_ANALYSIS_TIMEOUT_MS = 75_000;
+
 const contextOptions: Array<{ value: AnalysisContext; en: string; zh: string; tone: string }> = [
   { value: "relationship", en: "Partner / Dating", zh: "伴侣 / 暧昧", tone: "partner" },
   { value: "family", en: "Family", zh: "家人", tone: "family" },
@@ -94,9 +96,10 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     setElapsed(0); setLoading(true); setStatus(ui.analysing); setAnalysis(null);
     const input = normaliseInput(otherText, myText);
     const controller = new AbortController(); abortRef.current = controller;
-    const clientTimeout = window.setTimeout(() => controller.abort(), 90_000);
+    let clientTimeout: number | undefined;
     try {
-      const response = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...input, language, context }), signal: controller.signal });
+      const deadline = new Promise<never>((_, reject) => { clientTimeout = window.setTimeout(() => { controller.abort(); reject(new DOMException("Analysis deadline reached", "AbortError")); }, CLIENT_ANALYSIS_TIMEOUT_MS); });
+      const response = await Promise.race([fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...input, language, context }), signal: controller.signal }), deadline]);
       const data = await response.json();
       if (requestId.current !== currentRequest) return;
       if (!response.ok || !data.analysis) { setStatus(data.error || ui.unavailable); return; }
@@ -104,7 +107,7 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     } catch {
       if (requestId.current === currentRequest) { setAnalysis(null); setStatus(ui.unavailable); }
     } finally {
-      window.clearTimeout(clientTimeout);
+      if (clientTimeout !== undefined) window.clearTimeout(clientTimeout);
       if (abortRef.current === controller) abortRef.current = null;
       if (requestId.current === currentRequest) {
         setLoading(false);

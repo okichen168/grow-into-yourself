@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import ConversationAnalysisResult from "./conversation-analysis-result";
 import { normaliseInput, type AiAnalysis, type AnalysisContext, type AnalysisLanguage } from "../lib/analyze-shared";
 import { createLoadingSequence, type LoadingMessage } from "../lib/analysis-loading-messages";
+import { analyzeConversationLocally } from "../lib/local-conversation-analysis";
 
-export const CLIENT_ANALYSIS_TIMEOUT_MS = 75_000;
+export const CLIENT_ANALYSIS_TIMEOUT_MS = 50_000;
 
 const contextOptions: Array<{ value: AnalysisContext; en: string; zh: string; tone: string }> = [
   { value: "relationship", en: "Partner / Dating", zh: "伴侣 / 暧昧", tone: "partner" },
@@ -22,9 +23,10 @@ const copy = {
     privacy: "Your content is not saved or published by this site, and is not used to train this project’s models.",
     analyse: "Analyze with AI", analysing: "AI is reading this…", tooLong: "This is too long. Please shorten it before analysis.",
     unavailable: "Basic analysis", quota: "Deep analysis is currently unavailable.", retry: "Retry deep analysis",
+    timeoutKept: "Deep analysis did not finish within 50 seconds. The basic analysis remains available.",
     clear: "Clear this conversation", confirm: "Clear this conversation and its analysis?", cancel: "Cancel", confirmClear: "Clear",
     loadingTitle: "Reading this conversation carefully", working: "Analysis is running — the page is not stuck.", elapsed: "Analysing for", seconds: "seconds",
-    stages: ["Reading the whole exchange, not isolated lines", "Finding the original issue", "Checking for contradictions", "Separating reasonable points from pressure", "Merging repeated signals", "Deep analysis is taking longer than usual. A basic analysis will appear if it does not finish."],
+    stages: ["Checking the whole conversation", "Checking contradictions and pressure", "Merging deeper insights", "The basic analysis will remain if enhancement does not finish"],
   },
   zh: {
     id: "tool", eyebrow: "对话拆解", title: "把对方的话和你的回复分开看。", source: "这段对话来自",
@@ -33,14 +35,15 @@ const copy = {
     privacy: "你的内容不会被本站保存、公开，也不会用于训练本项目模型。",
     analyse: "让 AI 帮我分析", analysing: "AI 正在分析…", tooLong: "文字太长了，请删短一点再分析。",
     unavailable: "基础分析", quota: "深度分析当前不可用", retry: "重新尝试深度分析",
+    timeoutKept: "深度分析未在 50 秒内完成，已保留基础分析。",
     clear: "清空本次内容", confirm: "清空这次输入和分析结果？", cancel: "取消", confirmClear: "清空",
     loadingTitle: "正在仔细读这段对话", working: "正在分析，不是页面卡住了。", elapsed: "已分析", seconds: "秒",
-    stages: ["正在读完整段，不只看单句话", "正在找出原本讨论的事情", "正在核对前后有没有矛盾", "正在分清合理部分和压力", "正在合并重复线索", "深度分析比平时慢一些；若未完成，会提供基础分析。"],
+    stages: ["正在核对完整对话", "正在检查矛盾与压力", "正在合并深度洞察", "即将保留基础分析或完成增强"],
   },
 } as const;
 
 function loadingStage(elapsed: number) {
-  return elapsed < 7 ? 0 : elapsed < 14 ? 1 : elapsed < 21 ? 2 : elapsed < 28 ? 3 : elapsed < 35 ? 4 : 5;
+  return elapsed < 10 ? 0 : elapsed < 25 ? 1 : elapsed < 40 ? 2 : 3;
 }
 
 function ConversationScan() {
@@ -95,6 +98,9 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     lastStoredLoadingIndex.current = -1;
     setElapsed(0); setLoading(true); setStatus(ui.analysing); setAnalysis(null);
     const input = normaliseInput(otherText, myText);
+    const localAnalysis = analyzeConversationLocally({ ...input, language, context, statusReason: "success" });
+    if (requestId.current !== currentRequest) return;
+    setAnalysis(localAnalysis);
     const controller = new AbortController(); abortRef.current = controller;
     let clientTimeout: number | undefined;
     try {
@@ -103,9 +109,10 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
       const data = await response.json();
       if (requestId.current !== currentRequest) return;
       if (!response.ok || !data.analysis) { setStatus(data.error || ui.unavailable); return; }
-      setAnalysis(data.analysis); setStatus("");
-    } catch {
-      if (requestId.current === currentRequest) { setAnalysis(null); setStatus(ui.unavailable); }
+      if (data.mode === "ai") { setAnalysis(data.analysis); setStatus(""); }
+      else setStatus(data.analysis.statusReason === "timeout" ? ui.timeoutKept : ui.quota);
+    } catch (error) {
+      if (requestId.current === currentRequest) setStatus(error instanceof DOMException && error.name === "AbortError" ? ui.timeoutKept : ui.quota);
     } finally {
       if (clientTimeout !== undefined) window.clearTimeout(clientTimeout);
       if (abortRef.current === controller) abortRef.current = null;
@@ -149,7 +156,7 @@ export default function EnglishChecker({ language = "en" }: { language?: Analysi
     </div>
     <div className="text-meta"><span>{status}</span><span>{otherText.length} / 6000 · {myText.length} / 3000</span></div>
     <div className="analysis-actions"><button type="button" className="primary" disabled={!canAnalyze} onClick={runAnalysis}>{loading ? ui.analysing : ui.analyse}</button><button type="button" className="clear-conversation" onClick={requestClear}>{ui.clear}</button></div>
-    {loading && <div className="analysis-loading" aria-live="polite">
+    {loading && <div className={`analysis-loading ${analysis ? "analysis-loading-inline" : ""}`} aria-live="polite">
       <ConversationScan />
       <div className="analysis-loading-copy"><strong>{ui.loadingTitle}</strong><small className="analysis-loading-stage">{ui.stages[loadingStage(elapsed)]}</small><p>{loadingSequence[loadingIndex]?.text}</p><small>{ui.elapsed} {elapsed} {ui.seconds}</small>{elapsed >= 6 && <b>{ui.working}</b>}</div>
       <div className="analysis-loading-bar" aria-hidden="true"><span /></div>

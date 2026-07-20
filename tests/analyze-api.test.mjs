@@ -150,7 +150,7 @@ test("AI request and fallback", async (t) => {
     t.mock.method(globalThis, "clearTimeout", (handle) => { if (handle === 77) cleared = true; });
     t.mock.method(globalThis, "fetch", async () => new Promise(() => {}));
     const { data } = await analyze({ otherText: cases.premarital.text, myText: cases.premarital.myText, language: "zh", context: "relationship" });
-    assert.equal(scheduledDelay, 70_000); assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout"); assert.equal(cleared, true); assert.ok(data.analysis.reasonableParts.length > 0);
+    assert.equal(scheduledDelay, 45_000); assert.equal(data.mode, "local"); assert.equal(data.analysis.statusReason, "timeout"); assert.equal(cleared, true); assert.ok(data.analysis.reasonableParts.length > 0);
   });
   await t.test("Chinese and English locale instructions and fallbacks stay aligned", async (t) => {
     const prompts = []; t.mock.method(globalThis, "fetch", async (_url, init) => { prompts.push(JSON.parse(init.body).messages); return new Response(null, { status: 429 }); });
@@ -173,11 +173,11 @@ test("loading experience stays client-only and bounded", async () => {
   assert.ok(chineseMessages.length >= 30); assert.equal(new Set(chineseMessages).size, chineseMessages.length); assert.doesNotMatch(loadingSource, /乳腺增生|必须离开|一定在操控/);
   const bilingualRows = [...loadingSource.matchAll(/^\s*\["([^"]+)",\s*"([^"]+)"\],?$/gm)];
   assert.equal(bilingualRows.length, chineseMessages.length); assert.ok(bilingualRows.every(([, zh, en]) => zh && en));
-  assert.match(routeSource, /SERVER_AI_TIMEOUT_MS = 70_000/); assert.match(routeSource, /Promise\.race/); assert.match(routeSource, /max_tokens: 900/); assert.doesNotMatch(routeSource, /reasoning\s*:/); assert.doesNotMatch(routeSource, /900_?000|954_?000/);
-  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /CLIENT_ANALYSIS_TIMEOUT_MS = 75_000/); assert.match(checkerSource, /Promise\.race/); assert.doesNotMatch(checkerSource, /900_?000|954_?000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /Analysis is running — the page is not stuck/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /Reading this conversation carefully/); assert.match(checkerSource, /analysis-loading-messages/);
+  assert.match(routeSource, /SERVER_AI_TIMEOUT_MS = 45_000/); assert.match(routeSource, /Promise\.race/); assert.match(routeSource, /max_tokens: 900/); assert.doesNotMatch(routeSource, /reasoning\s*:/); assert.doesNotMatch(routeSource, /70_?000|75_?000|900_?000|954_?000/);
+  assert.match(loadingSource, /slice\(-6\)/); assert.match(checkerSource, /CLIENT_ANALYSIS_TIMEOUT_MS = 50_000/); assert.match(checkerSource, /Promise\.race/); assert.doesNotMatch(checkerSource, /70_?000|75_?000|900_?000|954_?000/); assert.match(checkerSource, /正在分析，不是页面卡住了/); assert.match(checkerSource, /Analysis is running — the page is not stuck/); assert.match(checkerSource, /elapsed >= 6/); assert.match(checkerSource, /正在仔细读这段对话/); assert.match(checkerSource, /Reading this conversation carefully/); assert.match(checkerSource, /analysis-loading-messages/);
   assert.equal((checkerSource.match(/fetch\("\/api\/analyze"/g) || []).length, 1); assert.doesNotMatch(checkerSource, /ANALYSIS_LOADING_MESSAGES.*JSON\.stringify/s);
   assert.doesNotMatch(checkerSource, /DetectiveMark|detective-person|detective-hat/); assert.match(checkerSource, /ConversationScan|scan-paper|scan-light/);
-  assert.match(checkerSource, /requestId\.current !== currentRequest/); assert.match(checkerSource, /setAnalysis\(null\)/); assert.match(resultSource, /analysis-mode-banner/); assert.match(resultSource, /深度分析暂未完成/);
+  assert.match(checkerSource, /requestId\.current !== currentRequest/); assert.match(checkerSource, /setAnalysis\(localAnalysis\)/); assert.match(checkerSource, /已保留基础分析/); assert.match(resultSource, /analysis-mode-banner/); assert.match(resultSource, /深度分析暂未完成/);
   assert.match(resultSource, /analysis\.keyAnnotations\.length > 0/); assert.match(resultSource, /analysis\.nextStepOptions\.length > 0/); assert.match(cssSource, /textarea::placeholder[^}]+font-style:italic/);
   for (const title of ["What happened", "One thing to hold onto first", "How this conversation pulls you away from the original issue", "What the conversation is pushing", "What is reasonable", "What deserves attention", "Key annotations", "Steady yourself first", "What you could do next", "Risk level"]) assert.match(resultSource, new RegExp(title));
   for (const title of ["发生了什么", "先说清楚一件事", "这段对话是怎么一步步把你带走的", "对方在推动什么", "合理的部分", "值得警惕的部分", "重点批注", "先把自己站稳", "下一步可以怎么做", "风险等级"]) assert.match(resultSource, new RegExp(title));

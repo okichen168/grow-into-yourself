@@ -184,6 +184,11 @@ html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weigh
 .analysis-actions { max-width:980px; display:flex; align-items:center; gap:12px; }
 .analysis-actions .primary { flex:1; }
 .analysis-loading { position:relative; max-width:980px; min-height:220px; margin-top:18px; padding:22px; display:grid; grid-template-columns:190px 1fr; align-items:center; gap:22px; overflow:hidden; border:1px solid #b8c9bf; border-radius:24px; background:linear-gradient(145deg,#f7f3e9,#edf5f1); box-shadow:var(--shadow); }
+.analysis-loading.analysis-loading-inline { min-height:0; grid-template-columns:76px 1fr; gap:14px; padding:12px 18px 18px; border-radius:18px; box-shadow:none; }
+.analysis-loading-inline .analysis-scan { width:76px; height:52px; }
+.analysis-loading-inline .analysis-loading-copy { min-height:0; }
+.analysis-loading-inline .analysis-loading-copy strong { font-size:16px; }
+.analysis-loading-inline .analysis-loading-copy p { min-height:0; margin:4px 0; font-size:14px; }
 .analysis-scan { width:100%; max-width:190px; height:96px; color:#59766d; }
 .analysis-scan .scan-paper rect { fill:rgba(255,252,244,.78); stroke:#a98e6c; stroke-width:1.2; }
 .analysis-scan .scan-paper path { fill:none; stroke:#aabbb3; stroke-width:2; stroke-linecap:round; }
@@ -275,6 +280,7 @@ html[data-font="reading"] .zh-page :is(h1,h2,h3,h4,strong,b,button) { font-weigh
 
 @media (max-width:520px) {
   .analysis-loading { min-height:220px; padding:16px 16px 28px; grid-template-columns:1fr; gap:2px; text-align:center; }
+  .analysis-loading.analysis-loading-inline { min-height:0; padding:10px 14px 18px; grid-template-columns:58px 1fr; gap:10px; text-align:left; }
   .analysis-scan { width:150px; height:76px; margin:auto; }
   .analysis-loading-copy { min-height:120px; }
   .analysis-loading-copy p { min-height:3.6em; margin:7px 0 5px; }

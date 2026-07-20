@@ -13,7 +13,7 @@ import {
 
 export const runtime = "edge";
 
-export const SERVER_AI_TIMEOUT_MS = 70_000;
+export const SERVER_AI_TIMEOUT_MS = 45_000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();

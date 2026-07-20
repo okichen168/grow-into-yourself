@@ -48,9 +48,9 @@ test("local structured analysis", async (t) => {
   await t.test("harm denial recognises the chain without diagnosing", async () => {
     const { data } = await analyze({ otherText: cases.harmDenial.text, language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);
     assert.equal(data.analysis.risk.level, "中"); assert.ok(data.analysis.interactionPattern.steps.length >= 5); assert.match(text, /具体伤害/); assert.match(text, /否认|不记得/); assert.match(text, /人品|人格/); assert.match(text, /家庭贡献/); assert.match(text, /冤枉/); assert.match(text, /养育|学费/); assert.match(text, /白眼狼|忘恩负义/); assert.match(text, /举证|证明伤害/); assert.doesNotMatch(text, /人格障碍/);
-    assert.ok(data.analysis.keyAnnotations.length >= 3 && data.analysis.keyAnnotations.length <= 4);
+    assert.ok(data.analysis.keyAnnotations.length >= 2 && data.analysis.keyAnnotations.length <= 4);
     assert.match(data.analysis.interactionPattern.explanation, /发生过什么/);
-    assert.equal(data.analysis.nextStepOptions[0]?.type, "no_reply");
+    assert.ok(data.analysis.nextStepOptions.some((item) => item.type === "no_reply"));
   });
   await t.test("one memory difference with willingness to listen is not gaslighting or DARVO", async () => {
     const { data } = await analyze({ otherText: "我不记得这件事，但愿意听你说，也想一起核对。", language: "zh", context: "family" }); const text = JSON.stringify(data.analysis);

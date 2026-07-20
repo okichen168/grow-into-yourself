@@ -89,8 +89,8 @@ export function generateCandidates(evidence: EvidenceItem[], context: AnalysisCo
   return RESEARCH_RULES.flatMap((item) => {
     let candidate = rawCandidate(item, evidence, context);
     if (!candidate && item.id === "R33") {
-      const correction = evidence.filter((entry) => entry.speaker === "user" && /(本地|同城|来合肥|不是外地|same city|local)/i.test(entry.text));
-      const oldCharge = evidence.filter((entry) => entry.speaker === "other" && /(外地|很远|找这么远|故意找|far away|distant)/i.test(entry.text));
+      const correction = evidence.filter((entry) => entry.speaker === "user" && /(本地|同城|同一城市|会[来到].{0,10}(工作|生活)|长期.{0,8}(工作|居住)|稳定后.{0,10}(来|回)|不是.{0,8}(外地|异地)|same city|work locally|move here|not.{0,8}far away)/i.test(entry.text));
+      const oldCharge = evidence.filter((entry) => entry.speaker === "other" && /(外地|异地|很远|太远|找这[么般]远|找那么远|故意找|非要找|far away|distant|too far)/i.test(entry.text));
       if (correction.length && oldCharge.length) candidate = { rule: item, score: 5, evidence: [...correction.slice(0, 1), ...oldCharge.slice(0, 1)], counterEvidence: [] };
     }
     if (!candidate) return [];

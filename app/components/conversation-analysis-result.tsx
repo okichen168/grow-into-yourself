@@ -1,6 +1,7 @@
 "use client";
 
 import type { AiAnalysis, AnalysisLanguage } from "../lib/analyze-shared";
+import { localizeAnalysisLabel, selectEvidenceForDisplay } from "../lib/conversation-analysis-quality";
 
 const headings = {
   en: {
@@ -41,7 +42,7 @@ function riskLabel(value: string, language: AnalysisLanguage) {
 
 export default function ConversationAnalysisResult({ analysis, language }: { analysis: AiAnalysis; language: AnalysisLanguage }) {
   const ui = headings[language];
-  const annotationQuotes = new Set(analysis.keyAnnotations.flatMap((item) => item.quotes));
+  const displayedEvidence = selectEvidenceForDisplay(analysis);
   const boundaryMain = analysis.evidenceBoundary.likely[0] || analysis.evidenceBoundary.observed[0] || "";
   const boundaryDetails = analysis.evidenceBoundary.likely.slice(boundaryMain ? 1 : 0, 3);
   const importantUncertainty = analysis.evidenceBoundary.uncertain[0] || "";
@@ -60,28 +61,28 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
     </section>}
 
     {analysis.interactionPattern.steps.length >= 3 && <section className="analysis-pattern semantic-notice"><h3>{ui.pattern}</h3><h4>{analysis.interactionPattern.title}</h4>
-      <ol className="interaction-steps">{analysis.interactionPattern.steps.slice(0, 5).map((step) => {
-        const quote = step.evidence.find((item) => !annotationQuotes.has(item));
+      <ol className="interaction-steps">{analysis.interactionPattern.steps.slice(0, 5).map((step, index) => {
+        const quote = displayedEvidence.get(`step:${index}`)?.[0];
         return <li key={`${step.action}-${step.evidence.join("|")}`}><b>{step.action}</b>{quote && <q>{shortQuote(quote)}</q>}</li>;
       })}</ol>
       <p className="pattern-conclusion">{analysis.interactionPattern.explanation}</p>
     </section>}
 
     {analysis.whatTheyArePushing.length > 0 && <section><h3>{ui.pushing}</h3><div className="analysis-card-grid">
-      {analysis.whatTheyArePushing.map((item) => <article className="semantic-notice" key={item.point}><h4>{item.point}</h4><small>{confidenceLabel(item.confidence, language)}</small>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}</article>)}
+      {analysis.whatTheyArePushing.map((item, index) => { const quote = displayedEvidence.get(`push:${index}`)?.[0]; return <article className="semantic-notice" key={item.point}><h4>{item.point}</h4><small>{confidenceLabel(item.confidence, language)}</small>{quote && <q className="analysis-short-quote">{shortQuote(quote)}</q>}</article>; })}
     </div></section>}
 
     {analysis.reasonableParts.length > 0 && <section className="semantic-ground"><h3>{ui.reasonable}</h3><ul>{analysis.reasonableParts.map((item) => <li key={item}>{item}</li>)}</ul></section>}
 
     {analysis.concerningParts.length > 0 && <section><h3>{ui.concerns}</h3><div className="analysis-card-grid">
-      {analysis.concerningParts.map((item) => <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{item.label}</h4><p>{item.explanation}</p>{item.evidence[0] && <q className="analysis-short-quote">{shortQuote(item.evidence[0])}</q>}<small>{confidenceLabel(item.confidence, language)} · {item.severity === "high" ? (language === "zh" ? "高压" : "High pressure") : (language === "zh" ? "值得注意" : "Notice")}</small></article>)}
+      {analysis.concerningParts.map((item, index) => { const quote = displayedEvidence.get(`concern:${index}`)?.[0]; return <article className={`semantic-${item.severity === "high" ? "high" : "notice"}`} key={`${item.label}-${item.explanation}`}><h4>{localizeAnalysisLabel(item.label, language)}</h4><p>{item.explanation}</p>{quote && <q className="analysis-short-quote">{shortQuote(quote)}</q>}<small>{confidenceLabel(item.confidence, language)} · {item.severity === "high" ? (language === "zh" ? "高压" : "High pressure") : (language === "zh" ? "值得注意" : "Notice")}</small></article>; })}
     </div></section>}
 
     {analysis.keyAnnotations.length > 0 && <section><h3>{ui.annotations}</h3><div className="annotation-stack">
-      {analysis.keyAnnotations.map((item, index) => <article className={item.tags.some((tag) => /威胁|羞辱|threat|humili/i.test(tag)) ? "semantic-high" : "semantic-notice"} key={`${item.keyPoint}-${index}`}>
-        <div className="annotation-quotes">{item.quotes.slice(0, 2).map((quote) => <q key={quote}>{shortQuote(quote)}</q>)}</div>
+      {analysis.keyAnnotations.slice(0, 4).map((item, index) => <article className={item.tags.some((tag) => /威胁|羞辱|threat|humili/i.test(tag)) ? "semantic-high" : "semantic-notice"} key={`${item.keyPoint}-${index}`}>
+        <div className="annotation-quotes">{(displayedEvidence.get(`annotation:${index}`) || []).map((quote) => <q key={quote}>{shortQuote(quote)}</q>)}</div>
         <h4>{item.keyPoint}</h4>
-        <div className="analysis-tags">{item.tags.map((tag) => <small key={tag}>{tag}</small>)}</div>
+        <div className="analysis-tags">{item.tags.map((tag) => <small key={tag}>{localizeAnalysisLabel(tag, language)}</small>)}</div>
         {item.grounding && <p className="annotation-grounding"><b>{ui.groundingPoint}</b>{item.grounding}</p>}
         {item.uncertainty && <p className="analysis-uncertainty"><b>{ui.uncertainty}</b> {item.uncertainty}</p>}
       </article>)}
@@ -96,7 +97,7 @@ export default function ConversationAnalysisResult({ analysis, language }: { ana
     </div></section>}
 
     <section className={analysis.risk.level === "紧急" || analysis.risk.level === "Urgent" ? "semantic-high" : "semantic-notice"}><h3>{ui.risk}</h3><strong className="risk-level">{riskLabel(analysis.risk.level, language)}</strong>
-      {analysis.risk.reasons.length > 0 && <ul>{analysis.risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+      {analysis.risk.reasons.length > 0 && <ul>{analysis.risk.reasons.map((reason) => <li key={reason}>{localizeAnalysisLabel(reason, language)}</li>)}</ul>}
       {analysis.risk.urgentWarning && <p className="urgent-analysis-warning">{analysis.risk.urgentWarning}</p>}
     </section>
   </div>;

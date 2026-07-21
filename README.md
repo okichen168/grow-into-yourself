@@ -72,40 +72,60 @@ The output offers interpretations and possible wording. It does not order the us
 
 ```text
 Other person’s messages ─┐
-                         ├─> /api/analyze ─> OpenRouter model ─> structured JSON
-My reply or draft ───────┘                         │
-                                                  └─> local fallback if unavailable
+                         ├─> /api/analyze ─> local evidence-linked analysis ─> structured JSON
+My reply or draft ───────┘                              │
+                                                       └─> optional external AI overlay
 ```
 
 1. The user pastes the other person’s messages into the first box.
 2. Their previous reply or draft response can be added separately.
-3. The server-side API sends the text to the configured AI model.
-4. The model returns structured analysis rather than free-form chat.
-5. If the provider is unavailable, the page remains usable through a clearly labelled basic local fallback.
+3. The server-side route builds a local, evidence-linked result first.
+4. When strict external-AI configuration is present, an external model may add a validated structured overlay without replacing the local result.
+5. If the provider is unavailable, times out, or returns invalid output, the local result remains available and clearly labelled.
 
 Keeping the speakers in separate fields avoids unreliable speaker guessing and removes slow mobile OCR from the critical path.
 
 ## Technical overview
 
-| Layer         | Implementation                                           |
-| ------------- | -------------------------------------------------------- |
-| Interface     | Next.js, React, TypeScript                               |
-| AI endpoint   | `POST /api/analyze`                                      |
-| Model routing | OpenRouter-compatible server request                     |
-| Configuration | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`                 |
-| Response      | Structured JSON with sentence analysis and reply options |
-| Resilience    | Local fallback instead of a broken page                  |
-| Languages     | English and Simplified Chinese                           |
-| Safety        | Non-diagnostic prompting and urgent-risk gating          |
+| Layer         | Implementation                                                                 |
+| ------------- | ------------------------------------------------------------------------------ |
+| Interface     | React, TypeScript, Vite / Vinext                                               |
+| Runtime       | Cloudflare Vite integration with a server-side `POST /api/analyze` route       |
+| Core analysis | Local-first, evidence-linked rule engine                                       |
+| AI overlay    | Configurable OpenRouter-compatible server request, strictly schema-validated   |
+| Configuration | `ANALYSIS_API_KEY`, `ANALYSIS_API_URL`, `ANALYSIS_MODEL`, `ANALYSIS_STRICT_PRIVACY` |
+| Response      | Structured JSON with sentence analysis, evidence links, and reply options      |
+| Resilience    | Local result survives missing configuration, timeouts, and invalid AI output   |
+| Languages     | English and Simplified Chinese                                                 |
+| Safety        | Non-diagnostic prompting, confidence calibration, and urgent-risk gating       |
 
 The API key belongs only in server-side environment variables. It must never be committed to GitHub or exposed in client-side JavaScript.
 
 ```env
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=deepseek/deepseek-chat-v3-0324:free
+ANALYSIS_API_KEY=
+ANALYSIS_API_URL=
+ANALYSIS_MODEL=
+ANALYSIS_STRICT_PRIVACY=true
 ```
 
-Available free-model identifiers may change. Deployment configuration should therefore remain replaceable rather than hard-coded into the interface.
+The external overlay is optional. Without these variables, the local analysis remains available. Keep secrets only in server-side environment variables; never commit them to GitHub or expose them in client-side JavaScript.
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+The development server uses Vite / Vinext with the project’s Cloudflare-compatible local bindings. To verify a production artifact locally, run `npm run build`; to serve it, run `npm start`.
+
+## Testing
+
+```bash
+npm test
+```
+
+This runs the verified build and Node test suite, including evidence-grounding, calibration, bilingual behaviour, fallback, timeout, API, and regression coverage. The current final regression suite passes 71/71 tests.
 
 ## Privacy
 

@@ -132,6 +132,44 @@ The product direction is informed by established definitions and research:
 
 These sources do not endorse or validate this software. They support the underlying premise that psychological pressure, controlling behaviour, emotional abuse and workplace harassment can be consequential even when no physical injury is visible.
 
+## How GPT-5.6 and Codex shaped the product
+
+The most useful thing GPT-5.6 did was not agree with me too quickly.
+
+Whenever I made a strong interpretation, it pushed back:
+
+- Which exact words support that conclusion?
+- Is there another reasonable explanation?
+- Are we seeing concern, or a pattern that narrows someone’s choices?
+- What new evidence should lower our confidence?
+
+Those questions became part of the product itself.
+
+I reviewed 73 peer-reviewed studies and translated the research into 38 decision rules and 39 minimal pairs. Strong labels require stronger evidence. Ordinary budgeting should not become “economic control.” A clear breakup should not become “silent treatment.” Concern and pressure can exist in the same conversation.
+
+I made the core product decisions:
+
+- no personality diagnosis;
+- every important conclusion must return to the original words;
+- uncertainty must stay visible;
+- the local result appears first;
+- external AI may improve the analysis, but it must never erase an already useful result;
+- real danger should lead to real-world support, not just a softer reply.
+
+Codex turned those decisions into working constraints:
+
+- evidence-linked analysis;
+- separate handling for family, dating, friendship and workplace conversations;
+- local-first fallback behaviour;
+- bilingual UI and analysis rules;
+- timeout and failure states that preserve the result;
+- regression tests for evidence mismatch, overclaiming and cross-case contamination;
+- deployment and repository synchronisation.
+
+The final regression suite passes 71/71 tests.
+
+GPT-5.6 helped me make empathy testable. Codex helped me make restraint executable.
+
 ## Status
 
 This is an early public test built to explore a narrow question:
